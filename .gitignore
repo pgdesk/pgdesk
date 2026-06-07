@@ -1,0 +1,22 @@
+# Binaries
+/bin/
+*.exe
+*.test
+*.out
+
+# Go workspace
+go.work
+go.work.sum
+
+# Coverage / profiling
+coverage.txt
+coverage.html
+*.prof
+
+# Fuzz corpus cache (keep seed corpus under testdata/, ignore generated)
+**/testdata/fuzz/
+
+# Editor / OS
+.idea/
+.vscode/
+.DS_Store
