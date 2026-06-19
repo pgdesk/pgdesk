@@ -1,0 +1,58 @@
+{{- define "form" -}}
+{{ template "head" .Base }}
+<div class="pg-form-header">
+  <h1>{{ if .IsCreate }}New {{ .Resource.Label }}{{ else }}Edit {{ .Resource.Label }}{{ end }}</h1>
+</div>
+
+{{- if .Conflict }}
+<div class="pg-conflict" role="alert">
+  <strong>This record was changed by someone else.</strong>
+  Review the current values below, then resubmit to overwrite, or go back to keep them.
+</div>
+{{- end }}
+
+{{- if .FormError }}
+<div class="pg-flash pg-flash-error">{{ .FormError }}</div>
+{{- end }}
+
+<form class="pg-form" method="post" action="{{ .Action }}">
+  {{ csrfField }}
+  {{- if not .IsCreate }}
+  <input type="hidden" name="_version" value="{{ .Version }}">
+  {{- end }}
+  {{- range .Fields }}
+  {{- $f := . }}
+  <div class="pg-form-row{{ if $f.Error }} pg-has-error{{ end }}">
+    <label for="f_{{ $f.Name }}">{{ $f.Label }}{{ if $f.Required }} <span class="pg-req">*</span>{{ end }}</label>
+    {{- if $f.Readonly }}
+    <input id="f_{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}" readonly>
+    {{- else if eq $f.Widget "checkbox" }}
+    <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="checkbox" value="true"{{ if $f.Checked }} checked{{ end }}>
+    {{- else if eq $f.Widget "textarea" }}
+    <textarea id="f_{{ $f.Name }}" name="{{ $f.Name }}">{{ formatValue $f.Value }}</textarea>
+    {{- else if eq $f.Widget "json" }}
+    <textarea id="f_{{ $f.Name }}" name="{{ $f.Name }}" class="pg-json">{{ formatValue $f.Value }}</textarea>
+    {{- else if eq $f.Widget "select" }}
+    <select id="f_{{ $f.Name }}" name="{{ $f.Name }}">
+      {{- range $f.Options }}
+      <option value="{{ . }}"{{ if eq . $f.ValueString }} selected{{ end }}>{{ . }}</option>
+      {{- end }}
+    </select>
+    {{- else }}
+    <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}">
+    {{- end }}
+    {{- if $f.Error }}<div class="pg-field-error">{{ $f.Error }}</div>{{ end }}
+    {{- if $f.CurrentValue }}<div class="pg-current-value">Current: {{ formatValue $f.CurrentValue }}</div>{{ end }}
+  </div>
+  {{- end }}
+  <div class="pg-form-actions">
+    <button type="submit" class="pg-btn pg-btn-primary">{{ if .IsCreate }}Create{{ else }}Save{{ end }}</button>
+    {{- if .IsCreate }}
+    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Cancel</a>
+    {{- else }}
+    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}">Cancel</a>
+    {{- end }}
+  </div>
+</form>
+{{ template "foot" .Base }}
+{{- end -}}

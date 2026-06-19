@@ -1,0 +1,14 @@
+{{- define "index" -}}
+{{ template "head" .Base }}
+<div class="pg-index-header">
+  <h1>{{ .Base.SiteTitle }}</h1>
+</div>
+<ul class="pg-resource-list">
+  {{- range .Resources }}
+  <li><a href="{{ $.Base.BasePath }}/{{ .Name }}">{{ .LabelPlural }}</a></li>
+  {{- else }}
+  <li class="pg-empty">No resources registered.</li>
+  {{- end }}
+</ul>
+{{ template "foot" .Base }}
+{{- end -}}

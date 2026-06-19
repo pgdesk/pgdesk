@@ -1,0 +1,41 @@
+{{- define "head" -}}
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ .Title }} · {{ .SiteTitle }}</title>
+<link rel="stylesheet" href="{{ .BasePath }}/_static/pgdesk.css">
+<script nonce="{{ nonce }}">/* FOUC-free theme init: static, developer-authored, nonce'd (F2) */
+(function(){try{var t=localStorage.getItem('pgdesk-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+</script>
+</head>
+<body>
+<header class="pg-header">
+  <a class="pg-brand" href="{{ .BasePath }}/">{{ .SiteTitle }}</a>
+  <div class="pg-header-right">
+    <div class="pg-principal">{{ if .Principal }}{{ .Principal }}{{ else }}anonymous{{ end }}</div>
+    <button type="button" class="pg-theme-toggle" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+  </div>
+</header>
+<div class="pg-shell">
+  <nav class="pg-nav">
+    <ul>
+      {{- range .Nav }}
+      <li><a class="{{ if .Active }}pg-nav-active{{ end }}" href="{{ .URL }}">{{ .Label }}</a></li>
+      {{- end }}
+    </ul>
+  </nav>
+  <main class="pg-main">
+    {{- range .Flash }}
+    <div class="pg-flash pg-flash-{{ .Level }}">{{ .Message }}</div>
+    {{- end }}
+{{- end -}}
+
+{{- define "foot" -}}
+  </main>
+</div>
+<script nonce="{{ nonce }}" src="{{ .BasePath }}/_static/pgdesk.js"></script>
+</body>
+</html>
+{{- end -}}

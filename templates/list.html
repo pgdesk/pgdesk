@@ -1,0 +1,99 @@
+{{- define "list" -}}
+{{ template "head" .Base }}
+<div class="pg-list-header">
+  <h1>{{ .Resource.LabelPlural }}</h1>
+  <div class="pg-list-header-actions">
+    <a class="pg-btn" href="{{ .ExportURL }}">Export CSV</a>
+    {{- if .CanCreate }}
+    <a class="pg-btn pg-btn-primary" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/new">Add {{ .Resource.Label }}</a>
+    {{- end }}
+  </div>
+</div>
+
+{{- if or .SearchEnabled .HasFilters }}
+<form class="pg-filters" method="get" action="{{ .Base.BasePath }}/{{ .Resource.Name }}">
+  {{- if .SearchEnabled }}
+  <div class="pg-filter">
+    <label>Search</label>
+    <input type="search" name="q" value="{{ .Query }}" placeholder="Search…" aria-label="Search">
+  </div>
+  {{- end }}
+  {{- range .Filters }}
+  {{- $f := . }}
+  <div class="pg-filter">
+    <label>{{ $f.Label }}</label>
+    {{- if or (eq $f.Kind "select") (eq $f.Kind "bool") }}
+    <select name="{{ $f.ParamKey }}">
+      {{- range $f.Options }}
+      <option value="{{ . }}"{{ if eq . $f.Value }} selected{{ end }}>{{ if eq . "" }}Any{{ else }}{{ . }}{{ end }}</option>
+      {{- end }}
+    </select>
+    {{- else if eq $f.Kind "daterange" }}
+    <input type="text" name="{{ $f.ParamKey }}" value="{{ $f.Value }}" placeholder="From">
+    <input type="text" name="{{ $f.ParamKeyTo }}" value="{{ $f.ValueTo }}" placeholder="To">
+    {{- else }}
+    <input type="text" name="{{ $f.ParamKey }}" value="{{ $f.Value }}">
+    {{- end }}
+  </div>
+  {{- end }}
+  <div class="pg-filter pg-filter-actions">
+    <button type="submit">Apply</button>
+    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Reset</a>
+  </div>
+</form>
+{{- end }}
+
+{{- if .HasActions }}
+<form method="post" action="{{ .Base.BasePath }}/{{ .Resource.Name }}/action" class="pg-action-form">
+  {{ csrfField }}
+  <div class="pg-action-bar">
+    <select name="_action" aria-label="Bulk action">
+      <option value="">Choose action…</option>
+      {{- range .Actions }}
+      <option value="{{ .Name }}" data-confirm="{{ .Confirm }}">{{ .Label }}</option>
+      {{- end }}
+    </select>
+    <button type="submit">Apply to selected</button>
+  </div>
+{{- end }}
+<table class="pg-table">
+  <thead>
+    <tr>
+      {{- if .HasActions }}<th class="pg-check-col"><input type="checkbox" data-select-all aria-label="Select all"></th>{{ end }}
+      {{- range .Headers }}
+      <th>
+        <a class="pg-sort{{ if .Active }} pg-sort-active{{ end }}" href="{{ .URL }}">
+          {{ .Label }}{{ if .Active }}{{ if .Desc }} ▾{{ else }} ▴{{ end }}{{ end }}
+        </a>
+      </th>
+      {{- end }}
+      {{- if .HasDetail }}<th class="pg-actions-col">·</th>{{ end }}
+    </tr>
+  </thead>
+  <tbody>
+    {{- range .Rows }}
+    <tr>
+      {{- if $.HasActions }}<td class="pg-check-col"><input type="checkbox" name="key" value="{{ .Key }}" aria-label="Select row"></td>{{ end }}
+      {{- range .Cells }}
+      <td>
+        {{- if .Link }}<a href="{{ .Link }}">{{ .Label }}</a>
+        {{- else if .Label }}{{ .Label }}
+        {{- else }}{{ formatValue .Value }}{{ end }}
+      </td>
+      {{- end }}
+      {{- if $.HasDetail }}<td class="pg-actions-col"><a href="{{ $.Base.BasePath }}/{{ $.Resource.Name }}/{{ .Key }}">View</a></td>{{ end }}
+    </tr>
+    {{- else }}
+    <tr><td class="pg-empty" colspan="99">No records.</td></tr>
+    {{- end }}
+  </tbody>
+</table>
+{{- if .HasActions }}</form>{{ end }}
+
+<nav class="pg-pager" aria-label="Pagination">
+  {{- if .HasPrev }}<a class="pg-page-prev" href="{{ .PrevURL }}">← Previous</a>{{ end }}
+  <span class="pg-page-info">Page {{ .Page }}</span>
+  {{- if .HasNext }}<a class="pg-page-next" href="{{ .NextURL }}">Next →</a>{{ end }}
+</nav>
+{{ template "foot" .Base }}
+{{- end -}}

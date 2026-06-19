@@ -1,0 +1,30 @@
+{{- define "detail" -}}
+{{ template "head" .Base }}
+<div class="pg-detail-header">
+  <h1>{{ .Resource.Label }}</h1>
+  <div class="pg-detail-actions">
+    {{- if .CanEdit }}
+    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}/edit">Edit</a>
+    {{- end }}
+    {{- if .CanDelete }}
+    <form method="post" action="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}/delete"
+          data-confirm="Delete this {{ .Resource.Label }}? This cannot be undone.">
+      {{ csrfField }}
+      <button type="submit" class="pg-btn pg-btn-danger">Delete</button>
+    </form>
+    {{- end }}
+  </div>
+</div>
+
+<dl class="pg-detail">
+  {{- range .Fields }}
+  <div class="pg-field-row">
+    <dt>{{ .Label }}</dt>
+    <dd>{{ formatValue .Value }}</dd>
+  </div>
+  {{- end }}
+</dl>
+
+<p><a href="{{ .Base.BasePath }}/{{ .Resource.Name }}">← Back to {{ .Resource.LabelPlural }}</a></p>
+{{ template "foot" .Base }}
+{{- end -}}
