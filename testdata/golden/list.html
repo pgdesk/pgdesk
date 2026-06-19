@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users · Ops</title>
+<link rel="stylesheet" href="/admin/_static/pgdesk.css">
+<script nonce="NONCE"> 
+(function(){try{var t=localStorage.getItem('pgdesk-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+</script>
+</head>
+<body>
+<header class="pg-header">
+  <a class="pg-brand" href="/admin/">Ops</a>
+  <div class="pg-header-right">
+    <div class="pg-principal">anonymous</div>
+    <button type="button" class="pg-theme-toggle" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+  </div>
+</header>
+<div class="pg-shell">
+  <nav class="pg-nav">
+    <ul>
+    </ul>
+  </nav>
+  <main class="pg-main">
+<div class="pg-list-header">
+  <h1>Users</h1>
+  <div class="pg-list-header-actions">
+    <a class="pg-btn" href="/admin/users/export.csv">Export CSV</a>
+    <a class="pg-btn pg-btn-primary" href="/admin/users/new">Add User</a>
+  </div>
+</div>
+<form class="pg-filters" method="get" action="/admin/users">
+  <div class="pg-filter">
+    <label>Status</label>
+    <select name="f_status">
+      <option value="" selected>Any</option>
+      <option value="active">active</option>
+    </select>
+  </div>
+  <div class="pg-filter pg-filter-actions">
+    <button type="submit">Apply</button>
+    <a class="pg-btn" href="/admin/users">Reset</a>
+  </div>
+</form>
+<form method="post" action="/admin/users/action" class="pg-action-form">
+  <input type="hidden" name="_pgdesk_csrf" value="CSRF">
+  <div class="pg-action-bar">
+    <select name="_action" aria-label="Bulk action">
+      <option value="">Choose action…</option>
+      <option value="suspend" data-confirm="Sure?">Suspend &lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;</option>
+    </select>
+    <button type="submit">Apply to selected</button>
+  </div>
+<table class="pg-table">
+  <thead>
+    <tr><th class="pg-check-col"><input type="checkbox" data-select-all aria-label="Select all"></th>
+      <th>
+        <a class="pg-sort" href="/admin/users?sort=email">
+          Email
+        </a>
+      </th><th class="pg-actions-col">·</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="pg-check-col"><input type="checkbox" name="key" value="1" aria-label="Select row"></td>
+      <td>&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;
+      </td>
+      <td><a href="/admin/orgs/1">ref &lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;</a>
+      </td><td class="pg-actions-col"><a href="/admin/users/1">View</a></td>
+    </tr>
+  </tbody>
+</table></form>
+
+<nav class="pg-pager" aria-label="Pagination">
+  <span class="pg-page-info">Page 1</span>
+</nav>
+</main>
+</div>
+<script nonce="NONCE" src="/admin/_static/pgdesk.js"></script>
+</body>
+</html>

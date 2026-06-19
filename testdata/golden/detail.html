@@ -1,0 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Users · Ops</title>
+<link rel="stylesheet" href="/admin/_static/pgdesk.css">
+<script nonce="NONCE"> 
+(function(){try{var t=localStorage.getItem('pgdesk-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
+</script>
+</head>
+<body>
+<header class="pg-header">
+  <a class="pg-brand" href="/admin/">Ops</a>
+  <div class="pg-header-right">
+    <div class="pg-principal">anonymous</div>
+    <button type="button" class="pg-theme-toggle" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode">◐</button>
+  </div>
+</header>
+<div class="pg-shell">
+  <nav class="pg-nav">
+    <ul>
+    </ul>
+  </nav>
+  <main class="pg-main">
+<div class="pg-detail-header">
+  <h1>User</h1>
+  <div class="pg-detail-actions">
+    <a class="pg-btn" href="/admin/users/1/edit">Edit</a>
+    <form method="post" action="/admin/users/1/delete"
+          data-confirm="Delete this User? This cannot be undone.">
+      <input type="hidden" name="_pgdesk_csrf" value="CSRF">
+      <button type="submit" class="pg-btn pg-btn-danger">Delete</button>
+    </form>
+  </div>
+</div>
+
+<dl class="pg-detail">
+  <div class="pg-field-row">
+    <dt>Email</dt>
+    <dd>&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;</dd>
+  </div>
+</dl>
+
+<p><a href="/admin/users">← Back to </a></p>
+</main>
+</div>
+<script nonce="NONCE" src="/admin/_static/pgdesk.js"></script>
+</body>
+</html>
