@@ -16,8 +16,8 @@ type Principal interface {
 }
 
 // Capability enumerates the authorization checks pgdesk performs. Exactly one
-// capability is checked per route, in the handler layer, before any query runs
-// (O6). Deny is the default: an unhandled capability is forbidden, not allowed.
+// capability is checked per route, in the handler layer, before any query runs.
+// Deny is the default: an unhandled capability is forbidden, not allowed.
 type Capability string
 
 const (
@@ -37,7 +37,7 @@ const (
 //
 // The seven hooks map 1:1 to Capability. They are enforced centrally in the
 // handler and never duplicated in templates or query code where they could
-// drift (O6).
+// drift.
 type Authorizer interface {
 	CanAccessAdmin(ctx context.Context, p Principal) (bool, error)
 	CanList(ctx context.Context, p Principal, resource string) (bool, error)
@@ -54,22 +54,12 @@ type Authorizer interface {
 // Principal on protected routes — a missing principal is denied upstream.
 type AllowAll struct{}
 
-func (AllowAll) CanAccessAdmin(context.Context, Principal) (bool, error) { return true, nil }
-func (AllowAll) CanList(context.Context, Principal, string) (bool, error) {
-	return true, nil
-}
-func (AllowAll) CanView(context.Context, Principal, string) (bool, error) {
-	return true, nil
-}
-func (AllowAll) CanCreate(context.Context, Principal, string) (bool, error) {
-	return true, nil
-}
-func (AllowAll) CanUpdate(context.Context, Principal, string) (bool, error) {
-	return true, nil
-}
-func (AllowAll) CanDelete(context.Context, Principal, string) (bool, error) {
-	return true, nil
-}
+func (AllowAll) CanAccessAdmin(context.Context, Principal) (bool, error)    { return true, nil }
+func (AllowAll) CanList(context.Context, Principal, string) (bool, error)   { return true, nil }
+func (AllowAll) CanView(context.Context, Principal, string) (bool, error)   { return true, nil }
+func (AllowAll) CanCreate(context.Context, Principal, string) (bool, error) { return true, nil }
+func (AllowAll) CanUpdate(context.Context, Principal, string) (bool, error) { return true, nil }
+func (AllowAll) CanDelete(context.Context, Principal, string) (bool, error) { return true, nil }
 func (AllowAll) CanRunAction(context.Context, Principal, string, string) (bool, error) {
 	return true, nil
 }
@@ -77,7 +67,7 @@ func (AllowAll) CanRunAction(context.Context, Principal, string, string) (bool, 
 // authorize dispatches a capability to the configured Authorizer and fails
 // closed: a nil authorizer, a nil principal, an error, or a false result all
 // deny. It is the single choke point through which every route's authorization
-// flows (O6).
+// flows.
 func authorize(ctx context.Context, az Authorizer, p Principal, cap Capability, resource, action string) (bool, error) {
 	if az == nil || p == nil {
 		return false, nil
