@@ -39,6 +39,22 @@ func TestFormatValueNil(t *testing.T) {
 	}
 }
 
+func TestCellValue(t *testing.T) {
+	if got := string(CellValue(true)); !strings.Contains(got, "pg-badge-ok") {
+		t.Errorf("true → %q, want an ok badge", got)
+	}
+	if got := string(CellValue(false)); !strings.Contains(got, "pg-badge-off") {
+		t.Errorf("false → %q, want an off badge", got)
+	}
+	// Non-bool values are HTML-escaped (F1): DB/request content is never raw markup.
+	if got := string(CellValue(`<script>alert(1)</script>`)); strings.Contains(got, "<script>") {
+		t.Fatalf("CellValue leaked unescaped markup: %s", got)
+	}
+	if got := string(CellValue(`<b>x</b>`)); got != "&lt;b&gt;x&lt;/b&gt;" {
+		t.Errorf("CellValue(%q) = %q, want escaped", "<b>x</b>", got)
+	}
+}
+
 // TestRenderEscapesDynamicContent proves html/template auto-escaping is intact
 // for DB/request-derived values (F1): an XSS payload placed in a cell renders as
 // text, not markup.

@@ -14,10 +14,26 @@ import (
 func StaticFuncs() template.FuncMap {
 	return template.FuncMap{
 		"formatValue": FormatValue,
+		"cellValue":   CellValue,
 		"safeJSON":    SafeJSON,
 		"dict":        dict,
 		"hasPrefix":   strings.HasPrefix,
 	}
+}
+
+// CellValue renders a scanned value for display, upgrading booleans to a status
+// pill (a common enterprise-admin affordance). It is F1-safe: the boolean path
+// emits only fixed, developer-authored markup, and every other value is
+// HTML-escaped before being returned as template.HTML — no dynamic/DB content is
+// ever emitted unescaped.
+func CellValue(v any) template.HTML {
+	if b, ok := v.(bool); ok {
+		if b {
+			return `<span class="pg-badge pg-badge-ok">Yes</span>`
+		}
+		return `<span class="pg-badge pg-badge-off">No</span>`
+	}
+	return template.HTML(template.HTMLEscapeString(FormatValue(v)))
 }
 
 // FormatValue renders a scanned DB value as a plain display string. The template

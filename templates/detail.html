@@ -20,7 +20,7 @@
   {{- range .Fields }}
   <div class="pg-field-row">
     <dt>{{ .Label }}</dt>
-    <dd>{{ formatValue .Value }}</dd>
+    <dd>{{ cellValue .Value }}</dd>
   </div>
   {{- end }}
 </dl>

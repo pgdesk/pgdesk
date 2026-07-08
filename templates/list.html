@@ -78,7 +78,7 @@
       <td>
         {{- if .Link }}<a href="{{ .Link }}">{{ .Label }}</a>
         {{- else if .Label }}{{ .Label }}
-        {{- else }}{{ formatValue .Value }}{{ end }}
+        {{- else }}{{ cellValue .Value }}{{ end }}
       </td>
       {{- end }}
       {{- if $.HasDetail }}<td class="pg-actions-col"><a href="{{ $.Base.BasePath }}/{{ $.Resource.Name }}/{{ .Key }}">View</a></td>{{ end }}
