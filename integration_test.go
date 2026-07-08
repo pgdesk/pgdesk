@@ -116,21 +116,21 @@ func setup(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
 		pgdesk.WithAuthorizer(pgdesk.AllowAll{}),
 		pgdesk.WithMiddleware(withPrincipal),
+		pgdesk.WithResource("it_users", func(r *pgdesk.Resource) {
+			r.LabelPlural = "Users"
+			r.ListDisplay("id", "email", "status", "created_at")
+			r.SearchFields("email", "full_name")
+			r.Filters("status", "created_at")
+			r.Readonly("id", "created_at")
+			r.DefaultSort("-created_at")
+			r.Action("activate", "Activate selected", activateUsers,
+				pgdesk.WithConfirm("Activate the selected users?"))
+		}),
 	)
 	if err != nil {
 		pool.Close()
 		t.Fatalf("New: %v", err)
 	}
-	admin.Resource("it_users", func(r *pgdesk.Resource) {
-		r.LabelPlural = "Users"
-		r.ListDisplay("id", "email", "status", "created_at")
-		r.SearchFields("email", "full_name")
-		r.Filters("status", "created_at")
-		r.Readonly("id", "created_at")
-		r.DefaultSort("-created_at")
-		r.Action("activate", "Activate selected", activateUsers,
-			pgdesk.WithConfirm("Activate the selected users?"))
-	})
 	t.Cleanup(func() { _ = admin.Close(); pool.Close() })
 	return admin, pool
 }
@@ -747,15 +747,15 @@ func TestIntegrationTransactionalAudit(t *testing.T) {
 		pgdesk.WithAuthorizer(pgdesk.AllowAll{}),
 		pgdesk.WithMiddleware(withPrincipal),
 		pgdesk.WithTxAuditLogger(dbAudit{}),
+		pgdesk.WithResource("it_users", func(r *pgdesk.Resource) {
+			r.ListDisplay("id", "email", "status")
+			r.Readonly("id", "created_at")
+		}),
 	)
 	if err != nil {
 		pool.Close()
 		t.Fatal(err)
 	}
-	admin.Resource("it_users", func(r *pgdesk.Resource) {
-		r.ListDisplay("id", "email", "status")
-		r.Readonly("id", "created_at")
-	})
 	t.Cleanup(func() { _ = admin.Close(); pool.Close() })
 
 	token, version := editToken(t, admin, "1")

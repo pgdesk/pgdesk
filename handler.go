@@ -26,17 +26,8 @@ const staticPrefix = "/_static/"
 // the request Principal, fail-closed (O6).
 func (a *Admin) buildHandler() http.Handler {
 	a.buildOnce.Do(func() {
-		// Finalize the resource set against the current catalog. This applies
-		// WithAutoRegister even if no explicit Resource was called, and is where
-		// auto-register config errors surface (fail-closed, construction-time).
-		st, err := a.buildState(a.currentCatalog())
-		if err != nil {
-			panic(fmt.Errorf("pgdesk: building resources: %w", err))
-		}
-		a.state.Store(st)
-		a.logExposure(st, "admin mounted")
-		a.built.Store(true)
-
+		// The resource set was already built and validated in New; here we only
+		// assemble the routes.
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /{$}", a.handleIndex)
 		mux.HandleFunc("GET /{resource}", a.handleList)

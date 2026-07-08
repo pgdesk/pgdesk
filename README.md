@@ -19,20 +19,19 @@ admin, err := pgdesk.New(pool,
     pgdesk.WithLogger(slog.Default()),       // structured logs (O5)
     pgdesk.WithQueryTimeout(15*time.Second), // bounded queries (O2)
     pgdesk.WithLoginURL("/login"),
+    pgdesk.WithResource("users", func(r *pgdesk.Resource) {
+        r.Label = "Users"
+        r.ListDisplay("id", "email", "status", "created_at")
+        r.SearchFields("email", "full_name")
+        r.Filters("status", "created_at")
+        r.Readonly("id", "created_at", "updated_at")
+        r.DefaultSort("-created_at")
+    }),
 )
 if err != nil {
-    log.Fatal(err)
+    log.Fatal(err) // includes resource misconfiguration — New never panics
 }
 defer admin.Close() // orderly teardown (O3); does NOT close the pool
-
-admin.Resource("users", func(r *pgdesk.Resource) {
-    r.Label = "Users"
-    r.ListDisplay("id", "email", "status", "created_at")
-    r.SearchFields("email", "full_name")
-    r.Filters("status", "created_at")
-    r.Readonly("id", "created_at", "updated_at")
-    r.DefaultSort("-created_at")
-})
 
 mux := http.NewServeMux()
 admin.Mount(mux)
@@ -41,7 +40,7 @@ admin.Mount(mux)
 ### Bulk actions, CSV export, and durable audit
 
 ```go
-admin.Resource("users", func(r *pgdesk.Resource) {
+pgdesk.WithResource("users", func(r *pgdesk.Resource) {
     r.ListDisplay("id", "email", "status")
     r.Filters("status")
 
@@ -57,7 +56,7 @@ admin.Resource("users", func(r *pgdesk.Resource) {
         },
         pgdesk.WithConfirm("Suspend the selected users?"),
     )
-})
+})  // pass to pgdesk.New(pool, …)
 ```
 
 Every list has a **CSV export** link (`/admin/users/export.csv`) that streams the
@@ -77,8 +76,8 @@ func (auditLogger) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEven
 // pgdesk.New(pool, pgdesk.WithTxAuditLogger(auditLogger{}), ...)
 ```
 
-See [examples/basic](examples/basic) for all of the above wired into a configured
-`http.Server` with graceful shutdown, SIGHUP reload, and a metrics bridge.
+See [examples/basic](examples/basic) for a minimal, single-file runnable app on
+`net/http` — connect a pool, declare one resource, mount, serve.
 
 ### Auto-registration (opt-in convenience)
 
@@ -95,7 +94,7 @@ admin, err := pgdesk.New(pool,
         pgdesk.IncludeViews("active_users"),
     ),
 )
-// Explicit admin.Resource("users", ...) calls always win over auto-registered ones.
+// Explicit WithResource("users", ...) declarations always win over auto-registered ones.
 ```
 
 ## Why pgdesk

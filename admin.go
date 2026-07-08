@@ -46,21 +46,21 @@ type Admin struct {
 	signer   *csrf.Signer               // nil only when no writable resource is registered (D5)
 	renderer *render.Renderer
 
-	configs []resourceReg // retained registrations so Reload can rebuild (D1)
-
 	handler   http.Handler // built once on first Mount/ServeHTTP
 	buildOnce sync.Once
-	built     atomic.Bool
 	closed    atomic.Bool
 }
 
-// New constructs an Admin from a live pool. It performs introspection once (D1):
-// if introspection fails, New fails and returns no half-initialized Admin.
+// New constructs an Admin from a live pool. It introspects the schema once (D1)
+// and builds every resource declared via WithResource / WithAutoRegister against
+// that catalog. Any failure — introspection, template parsing, or a resource
+// referencing an unknown table or column — returns an error and no
+// half-initialized Admin; New never panics on configuration.
 //
 // New uses context.Background bounded by the configured query timeout for the
-// initial introspection. A CSRF signing key (WithSecretKey) is not required
-// until a writable resource is registered, at which point Resource enforces it
-// (D5); a purely read-only admin may run without one.
+// initial introspection. A CSRF signing key (WithSecretKey) is required only if a
+// mutating resource is declared (D5); a purely read-only admin may run without
+// one.
 func New(pool *pgxpool.Pool, opts ...Option) (*Admin, error) {
 	if pool == nil {
 		return nil, ErrNoPool
@@ -109,16 +109,19 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 	if err != nil {
 		return nil, fmt.Errorf("pgdesk: initial introspection: %w", err)
 	}
-	// Initial state: catalog with no resources yet (Resource/WithAutoRegister
-	// populate it before Mount).
-	a.state.Store(&adminState{catalog: cat, resources: map[string]*Resource{}})
+
+	// Build the resource set against the catalog. Resources are declared as
+	// WithResource / WithAutoRegister options, so any misconfiguration (unknown
+	// table or column, or a mutating resource with no CSRF key) is returned here
+	// as an error — New never panics on configuration.
+	st, err := a.buildState(cat)
+	if err != nil {
+		return nil, fmt.Errorf("pgdesk: configuring resources: %w", err)
+	}
+	a.state.Store(st)
+	a.logExposure(st, "admin initialized")
 
 	return a, nil
-}
-
-// currentCatalog returns the catalog from the current state.
-func (a *Admin) currentCatalog() *introspect.Catalog {
-	return a.state.Load().catalog
 }
 
 // staticTemplateFuncs merges render's pure helpers with a compile-time assertion
@@ -134,32 +137,9 @@ func startupTimeout(query time.Duration) time.Duration {
 	return query
 }
 
-// Resource registers a table or view for administration and configures it via fn
-// (D2). Exposure is opt-in: only registered resources are reachable.
-//
-// Configuration errors are programmer errors surfaced loudly at startup: an
-// unknown table, an unknown column in a setter, or a writable resource with no
-// CSRF key configured (D5) all panic with a clear message. This matches the
-// ergonomic call site (no error to thread) while remaining fail-closed.
-func (a *Admin) Resource(name string, fn func(*Resource)) {
-	if a.closed.Load() {
-		panic(ErrClosed)
-	}
-	if a.built.Load() {
-		panic("pgdesk: Resource must be called before Mount/ServeHTTP")
-	}
-	a.configs = append(a.configs, resourceReg{name: name, fn: fn})
-	st, err := a.buildState(a.currentCatalog())
-	if err != nil {
-		a.configs = a.configs[:len(a.configs)-1] // roll back the bad registration
-		panic(fmt.Errorf("pgdesk: Resource(%q): %w", name, err))
-	}
-	a.state.Store(st)
-}
-
-// buildState builds every registered resource (explicit configs then, if enabled,
-// auto-registered tables) against cat and returns a fresh immutable adminState.
-// It is used at registration, at Mount, and at Reload — so Reload rebuilds
+// buildState builds every declared resource (WithResource options first, then,
+// if enabled, auto-registered tables) against cat and returns a fresh immutable
+// adminState. It runs at construction and at Reload — so Reload rebuilds
 // resources against the new catalog rather than leaving them bound to a stale one
 // (D1). Any configuration error aborts the whole build (fail-closed, D2).
 func (a *Admin) buildState(cat *introspect.Catalog) (*adminState, error) {
@@ -172,10 +152,10 @@ func (a *Admin) buildState(cat *introspect.Catalog) (*adminState, error) {
 		resources[name] = r
 	}
 
-	for _, reg := range a.configs {
+	for _, reg := range a.cfg.resources {
 		r, err := a.buildResource(cat, reg.name, reg.fn)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("resource %q: %w", reg.name, err)
 		}
 		add(reg.name, r)
 	}

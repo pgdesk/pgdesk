@@ -128,7 +128,7 @@ func TestBuildStateExplicitWinsOverAuto(t *testing.T) {
 	a := testAdmin(t, func(c *config) {
 		c.autoRegister = &autoRegisterConfig{excludeTables: map[string]bool{}, includeViews: map[string]bool{}}
 	})
-	a.configs = []resourceReg{{name: "users", fn: func(r *Resource) { r.LabelPlural = "People" }}}
+	a.cfg.resources = []resourceReg{{name: "users", fn: func(r *Resource) { r.LabelPlural = "People" }}}
 	st, err := a.buildState(syntheticCatalog())
 	if err != nil {
 		t.Fatalf("buildState: %v", err)
@@ -136,6 +136,18 @@ func TestBuildStateExplicitWinsOverAuto(t *testing.T) {
 	res, ok := st.resource("users")
 	if !ok || res.LabelPlural != "People" {
 		t.Fatalf("explicit config should win over auto-register: %+v", res)
+	}
+}
+
+func TestBuildStateUnknownColumnReturnsError(t *testing.T) {
+	// A resource referencing a column that doesn't exist is a configuration error
+	// returned by New (via buildState) — not a panic (the WithResource contract).
+	a := testAdmin(t)
+	a.cfg.resources = []resourceReg{{name: "users", fn: func(r *Resource) {
+		r.ListDisplay("no_such_column")
+	}}}
+	if _, err := a.buildState(syntheticCatalog()); err == nil {
+		t.Fatal("expected an error for an unknown column, got nil")
 	}
 }
 
