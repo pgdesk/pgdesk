@@ -2,6 +2,7 @@ package pgdesk
 
 import (
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"strings"
 	"time"
@@ -38,6 +39,8 @@ type config struct {
 	maxBodyBytes    int64
 	maxBulk         int
 	maxExportRows   int
+
+	templateFS fs.FS // nil unless WithTemplateFS is used; overlays the embedded templates
 
 	autoRegister *autoRegisterConfig // nil unless WithAutoRegister is used
 
@@ -302,4 +305,14 @@ func WithMaxBulk(n int) Option {
 		}
 		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxBulk(%d) ignored: value must be > 0, keeping %d", n, c.maxBulk))
 	}
+}
+
+// WithTemplateFS overlays custom templates over the built-in set. Any template
+// file present in fsys (matched by the same name as the embedded template,
+// e.g. "list.html") replaces the built-in one; templates absent from fsys fall
+// back to the embedded default. Use it to rebrand or restructure the admin UI
+// without forking. A malformed override template fails New(), never at
+// request time.
+func WithTemplateFS(fsys fs.FS) Option {
+	return func(c *config) { c.templateFS = fsys }
 }

@@ -120,12 +120,15 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 		a.signer = s
 	}
 
-	// Compile templates once; a parse error fails construction (F5).
+	// Compile templates once; a parse error fails construction (F5). When
+	// WithTemplateFS is set, cfg.templateFS is parsed on top of the embedded
+	// set so same-named templates override the built-in default; it is nil
+	// (no-op) otherwise.
 	tmplSub, err := fs.Sub(templatesFS, "templates")
 	if err != nil {
 		return nil, fmt.Errorf("pgdesk: locating templates: %w", err)
 	}
-	r, err := render.New(tmplSub, staticTemplateFuncs())
+	r, err := render.New(tmplSub, staticTemplateFuncs(), cfg.templateFS)
 	if err != nil {
 		return nil, err
 	}
