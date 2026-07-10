@@ -12,9 +12,9 @@ import (
 // Resource is a table or view plus its admin behavior. It is configured by the
 // callback passed to Admin.Resource, which runs once at New() against the
 // immutable catalog. Setter methods that reference columns validate against the
-// catalog and fail the whole construction if a name is unknown (D2, fail-closed).
+// catalog and fail the whole construction if a name is unknown (fail-closed).
 //
-// Capabilities are derived, not assumed (D6): detail/edit/delete exist only when
+// Capabilities are derived, not assumed: detail/edit/delete exist only when
 // the resource has a usable key AND the underlying relation is updatable.
 //
 // Label, LabelPlural, and Description are free-form display text set directly as
@@ -41,7 +41,7 @@ type Resource struct {
 	pageSize     int
 
 	keyCols    []*introspect.Column // defaults to table.PrimaryKey; override via Key
-	versionCol *introspect.Column   // nil -> xmin (O1)
+	versionCol *introspect.Column   // nil -> xmin
 	labelCol   *introspect.Column   // nil -> first-text-column heuristic; override via LabelColumn
 
 	fields         map[string]*fieldConfig
@@ -81,7 +81,7 @@ func (r *Resource) fieldFor(name string) *fieldConfig {
 }
 
 // resolve turns column names into catalog columns, recording every failure on
-// the resource so New() reports all configuration mistakes at once (D2). method
+// the resource so New() reports all configuration mistakes at once. method
 // is the name of the calling setter, included in the error so a bad column name
 // can be traced back to the configuration line that referenced it.
 func (r *Resource) resolve(method string, names ...string) ([]*introspect.Column, bool) {
@@ -127,7 +127,7 @@ func (r *Resource) SearchFields(cols ...string) {
 }
 
 // Filters sets the columns exposed as filters. Each column's allowed operators
-// are derived from its type category (D3).
+// are derived from its type category.
 func (r *Resource) Filters(cols ...string) {
 	if resolved, ok := r.resolve("Filters", cols...); ok {
 		r.filters = resolved
@@ -154,7 +154,7 @@ func (r *Resource) Hidden(cols ...string) {
 }
 
 // Required marks columns as required in the form as UX pre-flight only; the
-// database remains the authority (D7).
+// database remains the authority.
 func (r *Resource) Required(cols ...string) {
 	for _, n := range cols {
 		if _, ok := r.resolve("Required", n); ok {
@@ -163,7 +163,7 @@ func (r *Resource) Required(cols ...string) {
 	}
 }
 
-// Redact omits a column's value from audit before/after snapshots (O4).
+// Redact omits a column's value from audit before/after snapshots.
 func (r *Resource) Redact(cols ...string) {
 	for _, n := range cols {
 		if _, ok := r.resolve("Redact", n); ok {
@@ -212,7 +212,7 @@ func (r *Resource) DefaultSort(spec string) {
 }
 
 // PageSize sets the default page size for the list view. It is still clamped to
-// the admin's hard maximum at request time (F6).
+// the admin's hard maximum at request time.
 func (r *Resource) PageSize(n int) {
 	if n > 0 {
 		r.pageSize = n
@@ -220,7 +220,7 @@ func (r *Resource) PageSize(n int) {
 }
 
 // Key overrides the resource's key columns. Use it for views or unkeyed tables
-// to enable detail/edit/delete (D6). Unknown columns fail construction.
+// to enable detail/edit/delete. Unknown columns fail construction.
 func (r *Resource) Key(cols ...string) {
 	if resolved, ok := r.resolve("Key", cols...); ok {
 		r.keyCols = resolved
@@ -228,7 +228,7 @@ func (r *Resource) Key(cols ...string) {
 }
 
 // VersionColumn uses an explicit version/updated_at column for optimistic
-// concurrency instead of xmin (O1). The column must exist.
+// concurrency instead of xmin. The column must exist.
 func (r *Resource) VersionColumn(col string) {
 	if resolved, ok := r.resolve("VersionColumn", col); ok {
 		r.versionCol = resolved[0]
@@ -246,7 +246,7 @@ func (r *Resource) LabelColumn(col string) {
 }
 
 // ConstraintMessage maps a PostgreSQL constraint name to a friendly message
-// shown when that constraint is violated (D7).
+// shown when that constraint is violated.
 func (r *Resource) ConstraintMessage(name, msg string) {
 	r.constraintMsgs[name] = msg
 }
@@ -258,7 +258,7 @@ func (r *Resource) Use(mw ...Middleware) {
 
 // Action registers a row/bulk action. name must be URL-safe and unique on the
 // resource; label is shown in the action menu; fn runs against the selected rows
-// inside a transaction (O4). Registering an action requires the resource be
+// inside a transaction. Registering an action requires the resource be
 // keyed (it operates on selected primary keys) -- otherwise construction fails.
 func (r *Resource) Action(name, label string, fn ActionFunc, opts ...ActionOption) {
 	if !isURLSafe(name) {
@@ -299,7 +299,7 @@ func isURLSafe(s string) bool {
 	return true
 }
 
-// --- derived capabilities (D6) ---
+// --- derived capabilities ---
 
 // hasKey reports whether detail/edit/delete routes should exist.
 func (r *Resource) hasKey() bool { return len(r.keyCols) > 0 }
@@ -308,7 +308,7 @@ func (r *Resource) hasKey() bool { return len(r.keyCols) > 0 }
 // the resource must have a key and the relation must support at least one write
 // operation. It gates the CSRF-key requirement and the general edit affordance;
 // the specific create/update/delete gates below decide each operation precisely
-// so a view that supports only some of them exposes exactly those (D6).
+// so a view that supports only some of them exposes exactly those.
 func (r *Resource) writable() bool {
 	return r.hasKey() && (r.table.Insertable || r.table.Updatable || r.table.Deletable)
 }

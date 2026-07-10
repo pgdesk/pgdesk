@@ -15,7 +15,7 @@ var (
 
 	// ErrUnknownColumn is returned by resource setters (ListDisplay, Filters, ...)
 	// when a configured column name does not exist in the introspected table. It
-	// surfaces configuration mistakes at New() time, fail-closed (D2).
+	// surfaces configuration mistakes at New() time, fail-closed.
 	ErrUnknownColumn = errors.New("pgdesk: column does not exist on table")
 
 	// ErrUnknownTable is returned by Resource when the named table/view is not in
@@ -23,8 +23,8 @@ var (
 	ErrUnknownTable = errors.New("pgdesk: table not found in catalog")
 
 	// ErrAmbiguousTable is returned by New when a resource name matches a table in
-	// more than one configured schema. pgdesk refuses to guess which one was meant
-	// (D2); narrow WithSchemas, or exclude the name from auto-registration.
+	// more than one configured schema. pgdesk refuses to guess which one was meant;
+	// narrow WithSchemas, or exclude the name from auto-registration.
 	ErrAmbiguousTable = errors.New("pgdesk: table name is ambiguous across the configured schemas")
 
 	// ErrUnsafeName is returned by New when a resource name cannot be a URL path

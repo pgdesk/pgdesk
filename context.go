@@ -21,13 +21,13 @@ const (
 
 // WithPrincipal returns a copy of ctx carrying the authenticated operator. The
 // host's authentication middleware calls this; pgdesk reads it for every
-// authorization decision (O6).
+// authorization decision.
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
 	return context.WithValue(ctx, ctxKeyPrincipal, p)
 }
 
 // PrincipalFromContext returns the Principal attached by WithPrincipal, or nil if
-// none is present. A nil principal on a protected route is denied (O6).
+// none is present. A nil principal on a protected route is denied.
 //
 // A typed-nil pointer principal -- e.g. WithPrincipal(ctx, (*AppUser)(nil)) -- is
 // treated as absent and returned as nil. Without this normalization the interface
@@ -47,7 +47,7 @@ func PrincipalFromContext(ctx context.Context) Principal {
 
 // RequestIDFromContext returns the request ID bound for the current request, or
 // "" if none. It flows into every log line, audit event, and the opaque 500 page
-// so an operator can correlate a browser error with the real cause (O5, F5).
+// so an operator can correlate a browser error with the real cause.
 func RequestIDFromContext(ctx context.Context) string {
 	id, _ := ctx.Value(ctxKeyRequestID).(string)
 	return id
@@ -63,7 +63,7 @@ func LoggerFromContext(ctx context.Context) *slog.Logger {
 }
 
 // stateFromContext returns the request-scoped (catalog, resources) snapshot
-// loaded once at the top of the request (D1). Using this snapshot for the whole
+// loaded once at the top of the request. Using this snapshot for the whole
 // request means a mid-request Reload cannot shift the schema or resource set
 // underneath a handler.
 func stateFromContext(ctx context.Context) *adminState {
@@ -83,7 +83,7 @@ func withLogger(ctx context.Context, l *slog.Logger) context.Context {
 	return context.WithValue(ctx, ctxKeyLogger, l)
 }
 
-// nonceFromContext returns the per-request CSP nonce (F2), or "" if none.
+// nonceFromContext returns the per-request CSP nonce, or "" if none.
 func nonceFromContext(ctx context.Context) string {
 	n, _ := ctx.Value(ctxKeyNonce).(string)
 	return n

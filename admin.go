@@ -1,8 +1,8 @@
 // Package pgdesk is a PostgreSQL-first, pgx-first admin framework for Go. It
 // gives internal tools Django-Admin-like leverage: schema introspection,
 // declarative resource configuration, a server-rendered HTML UI, and fail-closed
-// safe defaults. See docs/ARCHITECTURE.md for the locked design decisions
-// (D1-D7, F1-F8, O1-O8) that this package implements.
+// safe defaults. See docs/ARCHITECTURE.md for the design-decision log that
+// documents the reasoning behind all major implementation choices.
 package pgdesk
 
 import (
@@ -27,7 +27,7 @@ import (
 // DB is the subset of *pgxpool.Pool that pgdesk uses. Accepting the interface
 // (rather than the concrete pool) keeps pgdesk usable with a wrapped or
 // instrumented pool and testable with a double; New takes a *pgxpool.Pool for the
-// common case, NewWithDB takes any implementation. pgdesk never closes it (O3).
+// common case, NewWithDB takes any implementation. pgdesk never closes the connection.
 //
 // The method set is spelled out in full (rather than embedding an unexported
 // helper interface) so it documents itself in go doc.
@@ -41,12 +41,12 @@ type DB interface {
 
 // Admin is the constructed admin application. It implements http.Handler, mounts
 // on a ServeMux, and owns the catalog, routing, templates, CSRF cookie, and
-// per-request deadlines. It does NOT own the pool's lifecycle (O3).
+// per-request deadlines. It does NOT own the pool's lifecycle.
 type Admin struct {
 	cfg      *config
 	db       DB
-	state    atomic.Pointer[adminState] // immutable (catalog, resources) bundle (D1)
-	signer   *csrf.Signer               // nil only when no writable resource is registered (D5)
+	state    atomic.Pointer[adminState] // immutable (catalog, resources) bundle
+	signer   *csrf.Signer               // nil only when no writable resource is registered
 	renderer *render.Renderer
 
 	handler   http.Handler // built once on first Mount/ServeHTTP
@@ -54,7 +54,7 @@ type Admin struct {
 	closed    atomic.Bool
 }
 
-// New constructs an Admin from a live pool. It introspects the schema once (D1)
+// New constructs an Admin from a live pool. It introspects the schema once
 // and builds every resource declared via WithResource / WithAutoRegister against
 // that catalog. Any failure -- introspection, template parsing, or a resource
 // referencing an unknown table or column -- returns an error and no
@@ -62,8 +62,7 @@ type Admin struct {
 //
 // New uses context.Background bounded by the configured query timeout for the
 // initial introspection. A CSRF signing key (WithSecretKey) is required only if a
-// mutating resource is declared (D5); a purely read-only admin may run without
-// one.
+// mutating resource is declared; a purely read-only admin may run without one.
 func New(pool *pgxpool.Pool, opts ...Option) (*Admin, error) {
 	if pool == nil {
 		return nil, ErrNoPool
@@ -75,7 +74,7 @@ func New(pool *pgxpool.Pool, opts ...Option) (*Admin, error) {
 // *pgxpool.Pool. Use it to run pgdesk against an instrumented or wrapped pool, or
 // to drive it with a test double. It behaves exactly like New otherwise (same
 // introspection, same fail-closed configuration, never panics). pgdesk does not
-// own the connection's lifecycle (O3).
+// own the connection's lifecycle.
 func NewWithDB(db DB, opts ...Option) (*Admin, error) {
 	if db == nil {
 		return nil, ErrNoPool
@@ -96,7 +95,7 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 	// Validate the normalized base path before it can reach mux.Handle, which
 	// would otherwise panic on a value containing '{', '}', whitespace, or
 	// control characters (Go 1.22+ ServeMux pattern syntax). New never panics
-	// on configuration (D2).
+	// on configuration.
 	if !isSafeBasePath(cfg.basePath) {
 		return nil, ErrUnsafeBasePath
 	}
@@ -120,7 +119,7 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 		a.signer = s
 	}
 
-	// Compile templates once; a parse error fails construction (F5). When
+	// Compile templates once; a parse error fails construction. When
 	// WithTemplateFS is set, cfg.templateFS is parsed on top of the embedded
 	// set so same-named templates override the built-in default; it is nil
 	// (no-op) otherwise.
@@ -134,7 +133,7 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 	}
 	a.renderer = r
 
-	// Introspect once into the immutable catalog behind the atomic pointer (D1).
+	// Introspect once into the immutable catalog behind the atomic pointer.
 	ctx, cancel := context.WithTimeout(context.Background(), startupTimeout(cfg.queryTimeout))
 	defer cancel()
 	cat, err := introspect.Load(ctx, db, cfg.schemas)
@@ -172,8 +171,8 @@ func startupTimeout(query time.Duration) time.Duration {
 // buildState builds every declared resource (WithResource options first, then,
 // if enabled, auto-registered tables) against cat and returns a fresh immutable
 // adminState. It runs at construction and at Reload -- so Reload rebuilds
-// resources against the new catalog rather than leaving them bound to a stale one
-// (D1). Any configuration error aborts the whole build (fail-closed, D2).
+// resources against the new catalog rather than leaving them bound to a stale one.
+// Any configuration error aborts the whole build (fail-closed).
 func (a *Admin) buildState(cat *introspect.Catalog) (*adminState, error) {
 	resources := map[string]*Resource{}
 	var order []string
@@ -228,7 +227,7 @@ func (a *Admin) buildResourceFrom(tbl *introspect.Table, name string, fn func(*R
 		return nil, r.err
 	}
 	// Mutating capability of any kind (writable CRUD or a registered action)
-	// requires a CSRF signing key, fail-closed (D5).
+	// requires a CSRF signing key, fail-closed.
 	if (r.writable() || len(r.actions) > 0) && a.signer == nil {
 		return nil, ErrSecretRequired
 	}
@@ -238,7 +237,7 @@ func (a *Admin) buildResourceFrom(tbl *introspect.Table, name string, fn func(*R
 // resolveTable finds a table by name across the configured schemas.
 //
 // A name matching a table in more than one schema is ambiguous and fails the
-// build (D2). Returning the first match would silently bind the resource -- and
+// build. Returning the first match would silently bind the resource -- and
 // every policy written against its name -- to whichever schema happened to be
 // listed first, leaving the other table permanently unreachable.
 func resolveTable(cat *introspect.Catalog, schemas []string, name string) (*introspect.Table, error) {
@@ -278,7 +277,7 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.buildHandler().ServeHTTP(w, r)
 }
 
-// Reload rebuilds the catalog and atomically swaps it in (D1). On failure it
+// Reload rebuilds the catalog and atomically swaps it in. On failure it
 // keeps the last-known-good catalog live and returns the error -- degrade to
 // stale, never to broken. Wire it to SIGHUP or an authenticated route; it is not
 // a magic built-in endpoint.
@@ -302,7 +301,7 @@ func (a *Admin) Reload(ctx context.Context) error {
 }
 
 // logExposure logs the full set of exposed resources so an operator can spot a
-// leaked PII or system table immediately (D2). It also flags a construction
+// leaked PII or system table immediately. It also flags a construction
 // state that looks like a mistake: no Authorizer configured while resources
 // are exposed (fail-closed, but silently so) and any resource whose PageSize
 // exceeds the admin's maxPageSize (harmless -- F6 clamps at request time --
@@ -343,8 +342,8 @@ func (a *Admin) warnOversizedPageSizes(st *adminState) {
 	}
 }
 
-// Healthy reports whether the admin can serve: the pool answers a ping and a
-// catalog is live (O3). Wire it to a readiness probe; pgdesk registers no route.
+// / Healthy reports whether the admin can serve: the pool answers a ping and a
+// catalog is live. Wire it to a readiness probe; pgdesk registers no route.
 func (a *Admin) Healthy(ctx context.Context) error {
 	if a.closed.Load() {
 		return ErrClosed
@@ -360,7 +359,7 @@ func (a *Admin) Healthy(ctx context.Context) error {
 	return nil
 }
 
-// Close marks the admin closed for orderly teardown (O3). It does NOT close the
+// Close marks the admin closed for orderly teardown. It does NOT close the
 // pool -- the host owns the pool's lifecycle. After Close, request handling and
 // Reload return ErrClosed. Close currently always returns nil; the error return
 // is reserved for future teardown steps.

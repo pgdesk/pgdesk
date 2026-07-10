@@ -15,9 +15,9 @@ admin, err := pgdesk.New(pool,
     pgdesk.WithTitle("Operations Admin"),
     pgdesk.WithBasePath("/admin"),
     pgdesk.WithSchemas("public"),
-    pgdesk.WithSecretKey(secret),            // required if mutations enabled (D5)
-    pgdesk.WithLogger(slog.Default()),       // structured logs (O5)
-    pgdesk.WithQueryTimeout(15*time.Second), // bounded queries (O2)
+    pgdesk.WithSecretKey(secret),            // required once any mutation is possible
+    pgdesk.WithLogger(slog.Default()),       // optional: enable structured logging
+    pgdesk.WithQueryTimeout(15*time.Second), // bound query execution time
     pgdesk.WithLoginURL("/login"),
     pgdesk.WithResource("users", func(r *pgdesk.Resource) {
         r.Label = "Users"
@@ -31,10 +31,31 @@ admin, err := pgdesk.New(pool,
 if err != nil {
     log.Fatal(err) // includes resource misconfiguration -- New never panics
 }
-defer admin.Close() // orderly teardown (O3); does NOT close the pool
+defer admin.Close() // orderly teardown; does NOT close the pool
 
 mux := http.NewServeMux()
 admin.Mount(mux)
+```
+
+### Resource configuration
+
+Each resource can be customized with field display, sorting, search, and foreign-key
+labeling. When a resource references another resource as a foreign key, pgdesk shows a
+label for the related row. By default, this is the first text column on the referenced table;
+use `LabelColumn` to override it:
+
+```go
+pgdesk.WithResource("posts", func(r *pgdesk.Resource) {
+    r.ListDisplay("id", "title", "author_id", "created_at")
+    r.SearchFields("title", "content")
+    r.Filters("created_at", "status")
+})
+
+pgdesk.WithResource("users", func(r *pgdesk.Resource) {
+    r.Label = "Authors"
+    r.ListDisplay("id", "email", "full_name")
+    r.LabelColumn("full_name") // shows "full_name" in posts.author_id foreign-key labels
+})
 ```
 
 ### Bulk actions, CSV export, and durable audit
@@ -65,7 +86,7 @@ Every list has a **CSV export** link (`/admin/users/export.csv`) that streams th
 current filtered/sorted view through the same authorizer and query builder.
 
 For a **durable audit trail**, implement `TxAuditLogger` -- it writes inside the
-mutation's transaction, so a mutation cannot commit without its audit record (O4):
+mutation's transaction, so a mutation cannot commit without its audit record:
 
 ```go
 type auditLogger struct{}
@@ -151,6 +172,31 @@ transaction, so they are guaranteed durably (see the audit example above).
 For session/auth, see [examples/session-auth](examples/session-auth) for a
 production-ready pattern using signed cookies.
 
+### Customizing the UI
+
+pgdesk's UI is built from embedded HTML templates. To rebrand, restructure the layout,
+or change styling without maintaining a fork, use `WithTemplateFS` to overlay custom
+templates. Any template file present in your filesystem (matched by name, e.g. `list.html`)
+replaces the built-in one; files absent from your overlay fall back to pgdesk's defaults.
+A malformed override template fails at `New()` time, never at request time:
+
+```go
+import "os"
+
+admin, err := pgdesk.New(pool,
+    pgdesk.WithSecretKey(secret),
+    pgdesk.WithTemplateFS(os.DirFS("templates")),  // overlay directory with custom .html files
+    // ... other options
+)
+if err != nil {
+    log.Fatal(err)
+}
+```
+
+Place any custom templates in your `templates/` directory. For example, `templates/list.html`
+will replace the built-in list view template, while built-in templates like `detail.html`
+will continue to be used if you don't provide an override.
+
 ### Auto-registration (opt-in convenience)
 
 Introspect everything, expose nothing until named -- or opt into convenience
@@ -196,8 +242,8 @@ application and infrastructure -- providing clean contracts (`Principal`,
 `Middleware`, `Authorizer`, `Metrics`) for each. **Do not deploy it raw to the
 public internet expecting more than it claims.**
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full set of locked
-decisions (D1-D7, F1-F8, O1-O8).
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for a complete design and
+implementation log of all architectural decisions.
 
 ## Authorization & row scoping
 

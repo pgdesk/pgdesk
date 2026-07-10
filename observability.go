@@ -7,7 +7,7 @@ import (
 )
 
 // Metrics is an optional hook so hosts can bridge pgdesk internals to
-// Prometheus/OTel without the library taking a metrics dependency (O5). The
+// Prometheus/OTel without the library taking a metrics dependency. The
 // default is a no-op. Implementations must be safe for concurrent use and must
 // not block.
 type Metrics interface {
@@ -24,7 +24,7 @@ func (nopMetrics) ObserveRequest(string, int, time.Duration) {}
 func (nopMetrics) ObserveQuery(string, time.Duration, error) {}
 
 // newRequestID generates a random 128-bit request ID as lowercase hex. It is
-// used only when the inbound request carries no X-Request-Id (O5).
+// used only when the inbound request carries no X-Request-Id.
 func newRequestID() string {
 	var b [16]byte
 	if _, err := rand.Read(b[:]); err != nil {

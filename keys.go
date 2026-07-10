@@ -8,7 +8,7 @@ import (
 
 // Keys is the set of primary keys selected for a bulk action. pgdesk decodes them
 // from the request, scopes them against the principal, and confirms every one
-// names a reachable row before the action runs (O6) -- so an ActionFunc receives
+// names a reachable row before the action runs -- so an ActionFunc receives
 // only keys it is allowed to touch.
 //
 // Because pgdesk introspects the resource's key columns, Keys hands them back in a
