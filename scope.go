@@ -13,8 +13,8 @@ import (
 // other way, so it is always well-formed.
 //
 // The column is resolved against the live catalog snapshot and emitted as a
-// quoted identifier; the value becomes $N. Nothing here is interpolated into SQL
-// (D3). Postgres compares the value to the column using the column's own type, so
+// quoted identifier; the value becomes $N. Nothing here is interpolated into SQL.
+// Postgres compares the value to the column using the column's own type, so
 // a Go string may constrain a uuid column without the host coercing anything.
 //
 // A constraint on a column that does not exist, or an operator the column's type
@@ -153,7 +153,7 @@ func (a *Admin) scopeFor(r *http.Request, res *Resource, capability Capability, 
 
 // scopeDenied renders a scope failure. A bad scope is a host configuration bug,
 // not an operator mistake: it is logged in full server-side and surfaces as a
-// generic 403 so nothing about the policy or the schema leaks (F5).
+// generic 403 so nothing about the policy or the schema leaks.
 func (a *Admin) scopeDenied(w http.ResponseWriter, r *http.Request, res *Resource, err error) {
 	LoggerFromContext(r.Context()).Error("pgdesk: scope resolution failed",
 		"resource", res.name, "error", err)

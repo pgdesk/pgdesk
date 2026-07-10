@@ -3,11 +3,15 @@
 Status: **implemented**, superseding the seven-method `Authorizer`.
 Pre-1.0, zero users; the interface broke now rather than never.
 
+## For users
+
+**Start here:** [Section 5.3 (Row-level: tenancy and ownership)](#53-row-level-tenancy-and-ownership) shows a concrete, working example of tenant scoping -- the most common use case. You probably want `pgdesk.ScopeOnly()` wrapping a function that returns `[]pgdesk.Constraint{pgdesk.Eq("org_id", operatorOrg)}`. The rest of this document explains why the design is this way.
+
+---
+
 This note records the authorization model and, as importantly, the alternatives
 that were rejected and why. It follows the house style of `ARCHITECTURE.md`:
 every guarantee below is concrete and testable, not an aspiration.
-
----
 
 ## 1. The two questions
 

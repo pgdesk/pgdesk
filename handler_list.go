@@ -338,9 +338,12 @@ func singleColumnFK(t *introspect.Table, colName string) *introspect.ForeignKey 
 }
 
 // labelColumn picks a human-friendly label column for a referenced table: the
-// first text column that is not the referenced key, falling back to the key
-// itself. A future release lets a resource declare this explicitly.
+// resource's explicit LabelColumn if set, otherwise the first text column that
+// is not the referenced key, falling back to the key itself.
 func labelColumn(ref *Resource, refPK *introspect.Column) *introspect.Column {
+	if ref.labelCol != nil {
+		return ref.labelCol
+	}
 	for _, c := range ref.table.Columns() {
 		if c.Name == refPK.Name || c.Category != introspect.CatText {
 			continue

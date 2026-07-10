@@ -28,7 +28,17 @@ type Renderer struct {
 // New parses every *.html template under fsys once. staticFuncs are functions
 // available to all templates at parse time (formatting helpers, plus stubs for
 // the per-request csrfField/nonce funcs that RenderPage overrides).
-func New(fsys fs.FS, staticFuncs template.FuncMap) (*Renderer, error) {
+//
+// overrideFS is optional (an absent or nil entry is a no-op) and, when given,
+// is parsed ON TOP of fsys: any *.html file in overrideFS whose name matches a
+// built-in template (e.g. "list.html") replaces it, because html/template's
+// Parse/ParseFS re-associates a template of the same name rather than merging
+// it; templates absent from overrideFS keep their embedded default. A
+// malformed override template fails New with an error, never a per-request
+// panic (F5). It is variadic solely so existing two-argument call sites need
+// not pass an explicit nil; passing more than one overrideFS is not supported
+// and only the first is used.
+func New(fsys fs.FS, staticFuncs template.FuncMap, overrideFS ...fs.FS) (*Renderer, error) {
 	funcs := template.FuncMap{
 		// Request-scoped stubs; real implementations are injected per request in
 		// RenderPage via Clone. Present at parse time so templates reference them.
@@ -42,6 +52,12 @@ func New(fsys fs.FS, staticFuncs template.FuncMap) (*Renderer, error) {
 	t, err := t.ParseFS(fsys, "*.html")
 	if err != nil {
 		return nil, fmt.Errorf("pgdesk/render: parsing templates: %w", err)
+	}
+	if len(overrideFS) > 0 && overrideFS[0] != nil {
+		t, err = t.ParseFS(overrideFS[0], "*.html")
+		if err != nil {
+			return nil, fmt.Errorf("pgdesk/render: parsing override templates: %w", err)
+		}
 	}
 	return &Renderer{base: t}, nil
 }

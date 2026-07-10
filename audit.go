@@ -17,9 +17,9 @@ const (
 	AuditBulkAction AuditAction = "bulk_action"
 )
 
-// AuditEvent is a structured, complete record of a mutation (O4). Before/after
+// AuditEvent is a structured, complete record of a mutation. Before/after
 // snapshots respect field-level redaction so secrets never enter the audit trail
-// (fields flagged with Field.Redact are omitted).
+// (columns marked with Resource.Redact are omitted).
 type AuditEvent struct {
 	// ActorID and ActorName come from the request Principal.
 	ActorID   string
@@ -47,7 +47,7 @@ type AuditEvent struct {
 // outside the mutation transaction, an event can be lost if the process crashes
 // between commit and log; that tradeoff is acceptable for hosts shipping audit
 // to an external sink and is documented here. For guaranteed durability, prefer
-// TxAuditLogger (O4).
+// TxAuditLogger.
 type AuditLogger interface {
 	// LogAudit records an event. A returned error is logged but does NOT roll
 	// back the mutation (this is the best-effort variant).
@@ -55,7 +55,7 @@ type AuditLogger interface {
 }
 
 // TxAuditLogger records an audit event inside the SAME transaction as the
-// mutation (O4). A mutation cannot commit without its audit record, and an audit
+// mutation. A mutation cannot commit without its audit record, and an audit
 // failure rolls back the mutation. Use this when the audit log is DB-backed and
 // must not miss events.
 type TxAuditLogger interface {

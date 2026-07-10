@@ -7,8 +7,8 @@ import (
 )
 
 // ActionFunc executes a row or bulk action against the selected rows inside the
-// mutation's transaction (O4). keys is the set of selected primary keys, already
-// scoped to the principal (O6); Keys.Int64s or Keys.Strings hand them back as a
+// mutation's transaction. keys is the set of selected primary keys, already
+// scoped to the principal; Keys.Int64s or Keys.Strings hand them back as a
 // typed slice ready to bind to "= ANY($n)". The returned message is shown to the
 // operator as a flash; returning an error rolls the whole action back and shows
 // the error.

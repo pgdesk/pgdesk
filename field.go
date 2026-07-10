@@ -10,7 +10,7 @@ const (
 	WidgetTextarea Widget = "textarea" // multi-line text
 	WidgetCheckbox Widget = "checkbox" // boolean
 	WidgetSelect   Widget = "select"   // enum / FK
-	WidgetJSON     Widget = "json"     // JSON editor (bootstrapped safely, F1)
+	WidgetJSON     Widget = "json"     // JSON editor (bootstrapped safely)
 	WidgetDateTime Widget = "datetime" // timestamp picker
 )
 
@@ -21,7 +21,7 @@ type fieldConfig struct {
 	label    string
 	readonly bool
 	hidden   bool
-	required bool // required beyond NOT NULL (UX pre-flight only, D7)
-	redact   bool // omit value from audit before/after snapshots (O4)
+	required bool // required beyond NOT NULL (UX pre-flight only)
+	redact   bool // omit value from audit before/after snapshots
 	widget   Widget
 }
