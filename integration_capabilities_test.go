@@ -136,6 +136,14 @@ func TestIntegrationUpdatableViewWithKey(t *testing.T) {
 		t.Fatalf("view detail status = %d, want 200\n%s", rec.Code, rec.Body.String())
 	}
 
+	// The edit form's version field must be empty for a NoVersion resource, never
+	// the "<nil>" that a naive fmt.Sprint of a SQL NULL would produce.
+	editForm := do(admin, httptest.NewRequest("GET", "/admin/cap_uview/1/edit", nil))
+	if strings.Contains(editForm.Body.String(), `name="_version" value="<nil>"`) ||
+		strings.Contains(editForm.Body.String(), "&lt;nil&gt;") {
+		t.Errorf("NoVersion edit form leaked a <nil> version token:\n%s", editForm.Body.String())
+	}
+
 	token, cookie, version := capEditForm(t, admin, "cap_uview", "1")
 	form := url.Values{"label": {"two"}}
 	form.Set("_pgdesk_csrf", token)
