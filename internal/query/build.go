@@ -49,7 +49,11 @@ func (v VersionStrategy) versionPredicate(args *Args, token string) string {
 // version token first (O1), then the requested columns. keyCols are the
 // resource's key columns (which may differ from t.PrimaryKey for views, D6);
 // keyVals must be decoded, typed values matching keyCols in order.
-func SelectRow(t *introspect.Table, cols, keyCols []*introspect.Column, keyVals []any, ver VersionStrategy) (string, []any, error) {
+//
+// scope holds the principal's row constraints (O6). They are ANDed into the
+// WHERE, so a row outside the principal's scope simply does not exist: the fetch
+// returns no rows and the caller renders 404, never 403.
+func SelectRow(t *introspect.Table, cols, keyCols []*introspect.Column, keyVals []any, ver VersionStrategy, scope []Filter) (string, []any, error) {
 	if len(cols) == 0 {
 		return "", nil, ErrNoColumns
 	}
@@ -69,6 +73,98 @@ func SelectRow(t *introspect.Table, cols, keyCols []*introspect.Column, keyVals 
 	b.WriteString(QualifyIdent(t.Schema, t.Name))
 	b.WriteString(" WHERE ")
 	writeKeyPredicate(&b, args, keyCols, keyVals)
+	writeScope(&b, args, scope)
+	return b.String(), args.Values(), nil
+}
+
+// ExistsRow builds "SELECT 1 FROM t WHERE key ... [AND scope]" — the probe that
+// tells an update or delete affecting zero rows apart from one the principal may
+// not reach. It carries no version predicate on purpose: with the version guard
+// removed, a row that still does not appear is out of scope (404), and a row that
+// does appear was changed underneath us (409).
+func ExistsRow(t *introspect.Table, keyCols []*introspect.Column, keyVals []any, scope []Filter) (string, []any, error) {
+	if len(keyCols) == 0 {
+		return "", nil, ErrNoKey
+	}
+	if len(keyCols) != len(keyVals) {
+		return "", nil, ErrKeyArity
+	}
+	var b strings.Builder
+	args := &Args{}
+	b.WriteString("SELECT 1 FROM ")
+	b.WriteString(QualifyIdent(t.Schema, t.Name))
+	b.WriteString(" WHERE ")
+	writeKeyPredicate(&b, args, keyCols, keyVals)
+	writeScope(&b, args, scope)
+	return b.String(), args.Values(), nil
+}
+
+// CountRowsInScope builds "SELECT count(*) FROM t WHERE (key₁ OR key₂ …) [AND
+// scope]" for a bulk action's selected keys.
+//
+// A bulk action runs host-authored SQL that pgdesk cannot rewrite, so the keys
+// must be vetted before the action sees them. The caller compares the count with
+// the number of distinct keys submitted and refuses the whole action on any
+// shortfall: a key outside the principal's scope, a key that does not exist, and
+// a duplicated key all fail closed. Running it inside the action's transaction
+// makes the check and the action consistent.
+func CountRowsInScope(t *introspect.Table, keyCols []*introspect.Column, keys [][]any, scope []Filter) (string, []any, error) {
+	if len(keyCols) == 0 {
+		return "", nil, ErrNoKey
+	}
+	if len(keys) == 0 {
+		return "", nil, ErrKeyArity
+	}
+	for _, kv := range keys {
+		if len(kv) != len(keyCols) {
+			return "", nil, ErrKeyArity
+		}
+	}
+	var b strings.Builder
+	args := &Args{}
+
+	// The caller compares this count with the number of keys submitted, so the
+	// count must be of DISTINCT key tuples: a duplicated key, or a non-unique
+	// declared key on a view (D6), must not inflate the count into a false pass.
+	if len(keyCols) == 1 {
+		// Single-column key: a bounded IN list of individual $N placeholders.
+		// Preferred over "= ANY($1)" because a []any array argument fails to encode
+		// when pgx runs without a describe step (PgBouncer transaction pooling); an
+		// IN list encodes in every mode and the planner treats it as a ScalarArrayOp.
+		col := Ident(keyCols[0].Name)
+		b.WriteString("SELECT count(DISTINCT ")
+		b.WriteString(col)
+		b.WriteString(") FROM ")
+		b.WriteString(QualifyIdent(t.Schema, t.Name))
+		b.WriteString(" WHERE ")
+		b.WriteString(col)
+		b.WriteString(" IN (")
+		for i, kv := range keys {
+			if i > 0 {
+				b.WriteString(", ")
+			}
+			b.WriteString(args.Add(kv[0]))
+		}
+		b.WriteString(")")
+		writeScope(&b, args, scope)
+		return b.String(), args.Values(), nil
+	}
+
+	// Composite key: OR of per-key AND-groups. Composite keys are primary keys and
+	// therefore unique, so count(*) counts distinct tuples.
+	b.WriteString("SELECT count(*) FROM ")
+	b.WriteString(QualifyIdent(t.Schema, t.Name))
+	b.WriteString(" WHERE (")
+	for i, kv := range keys {
+		if i > 0 {
+			b.WriteString(" OR ")
+		}
+		b.WriteString("(")
+		writeKeyPredicate(&b, args, keyCols, kv)
+		b.WriteString(")")
+	}
+	b.WriteString(")")
+	writeScope(&b, args, scope)
 	return b.String(), args.Values(), nil
 }
 
@@ -76,7 +172,11 @@ func SelectRow(t *introspect.Table, cols, keyCols []*introspect.Column, keyVals 
 // (O1). setCols/setVals are the resolved columns and typed values to write;
 // returning are the columns to read back with RETURNING (D7 — supplies
 // generated defaults without a read-after-write). keyVals match t.PrimaryKey.
-func UpdateRow(t *introspect.Table, setCols []*introspect.Column, setVals []any, keyCols []*introspect.Column, keyVals []any, versionToken string, ver VersionStrategy, returning []*introspect.Column) (string, []any, error) {
+//
+// scope holds the principal's row constraints (O6), ANDed into the WHERE of the
+// statement that performs the write. The authorization predicate and the mutation
+// are therefore one atomic operation: nothing can falsify it in between.
+func UpdateRow(t *introspect.Table, setCols []*introspect.Column, setVals []any, keyCols []*introspect.Column, keyVals []any, versionToken string, ver VersionStrategy, returning []*introspect.Column, scope []Filter) (string, []any, error) {
 	if len(setCols) == 0 {
 		return "", nil, ErrNoColumns
 	}
@@ -106,6 +206,7 @@ func UpdateRow(t *introspect.Table, setCols []*introspect.Column, setVals []any,
 	writeKeyPredicate(&b, args, keyCols, keyVals)
 	b.WriteString(" AND ")
 	b.WriteString(ver.versionPredicate(args, versionToken))
+	writeScope(&b, args, scope)
 	if len(returning) > 0 {
 		b.WriteString(" RETURNING ")
 		writeColumnList(&b, returning)
@@ -120,6 +221,16 @@ func writeColumnList(b *strings.Builder, cols []*introspect.Column) {
 			b.WriteString(", ")
 		}
 		b.WriteString(Ident(c.Name))
+	}
+}
+
+// writeScope appends " AND <predicate>" for each row constraint. The constraints
+// were resolved against the catalog, so every identifier is catalog-owned and
+// every value becomes $N (D3).
+func writeScope(b *strings.Builder, args *Args, scope []Filter) {
+	for _, f := range scope {
+		b.WriteString(" AND ")
+		b.WriteString(emitFilter(args, f))
 	}
 }
 

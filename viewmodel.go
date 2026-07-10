@@ -81,25 +81,38 @@ type filterField struct {
 	Options    []string // for "select"/"bool"
 }
 
+// filterChip is a removable pill for a currently-active filter. RemoveURL is the
+// current list URL with this filter's parameter(s) cleared and pagination reset,
+// so following it simply drops the constraint (works without JavaScript).
+type filterChip struct {
+	Label     string
+	Value     string
+	RemoveURL string
+}
+
 type listView struct {
-	Base          baseView
-	Resource      resourceMeta
-	SearchEnabled bool
-	Query         string
-	Headers       []sortHeader
-	Rows          []rowView
-	HasDetail     bool
-	CanCreate     bool
-	Actions       []actionMeta
-	HasActions    bool
-	ExportURL     string
-	Filters       []filterField
-	HasFilters    bool
-	Page          int
-	HasPrev       bool
-	HasNext       bool
-	PrevURL       string
-	NextURL       string
+	Base            baseView
+	Resource        resourceMeta
+	SearchEnabled   bool
+	Query           string
+	Headers         []sortHeader
+	Rows            []rowView
+	HasDetail       bool
+	CanCreate       bool
+	Actions         []actionMeta
+	HasActions      bool
+	ExportURL       string
+	InlineFilters   []filterField // always-visible filter controls
+	OverflowFilters []filterField // controls collapsed into the "More filters" popover
+	HasOverflow     bool
+	ActiveChips     []filterChip // removable pills for currently-applied filters
+	ActiveCount     int          // number of active filters (drives the mobile "Filters (n)" badge)
+	HasFilters      bool
+	Page            int
+	HasPrev         bool
+	HasNext         bool
+	PrevURL         string
+	NextURL         string
 }
 
 type detailField struct {

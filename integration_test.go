@@ -114,7 +114,7 @@ func setup(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 	admin, err := pgdesk.New(pool,
 		pgdesk.WithBasePath("/admin"),
 		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
-		pgdesk.WithAuthorizer(pgdesk.AllowAll{}),
+		pgdesk.WithAuthorizer(pgdesk.AllowAll),
 		pgdesk.WithMiddleware(withPrincipal),
 		pgdesk.WithResource("it_users", func(r *pgdesk.Resource) {
 			r.LabelPlural = "Users"
@@ -136,10 +136,10 @@ func setup(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 }
 
 // activateUsers is a bulk action used by the integration tests.
-func activateUsers(ctx context.Context, tx pgx.Tx, keys [][]any) (string, error) {
-	ids := make([]any, 0, len(keys))
-	for _, k := range keys {
-		ids = append(ids, k[0])
+func activateUsers(ctx context.Context, tx pgx.Tx, keys pgdesk.Keys) (string, error) {
+	ids, err := keys.Int64s()
+	if err != nil {
+		return "", err
 	}
 	tag, err := tx.Exec(ctx, "UPDATE it_users SET status='active' WHERE id = ANY($1)", ids)
 	if err != nil {
@@ -311,7 +311,7 @@ func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Poo
 	base := []pgdesk.Option{
 		pgdesk.WithBasePath("/admin"),
 		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
-		pgdesk.WithAuthorizer(pgdesk.AllowAll{}),
+		pgdesk.WithAuthorizer(pgdesk.AllowAll),
 		pgdesk.WithMiddleware(withPrincipal),
 	}
 	admin, err := pgdesk.New(pool, append(base, opts...)...)
@@ -744,7 +744,7 @@ func TestIntegrationTransactionalAudit(t *testing.T) {
 	}
 	admin, err := pgdesk.New(pool,
 		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
-		pgdesk.WithAuthorizer(pgdesk.AllowAll{}),
+		pgdesk.WithAuthorizer(pgdesk.AllowAll),
 		pgdesk.WithMiddleware(withPrincipal),
 		pgdesk.WithTxAuditLogger(dbAudit{}),
 		pgdesk.WithResource("it_users", func(r *pgdesk.Resource) {

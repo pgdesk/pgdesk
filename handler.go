@@ -137,24 +137,38 @@ func (a *Admin) queryContext(r *http.Request) (context.Context, context.CancelFu
 
 // --- authorization entry point (O6) ---
 
+// can reports whether the current principal may perform a capability. It is the
+// one predicate the whole package asks: guard calls it to enforce, and the view
+// models call it to decide whether to render an affordance. Because both read the
+// same answer, the UI cannot offer an operation the guard will refuse.
+//
+// An authorizer error is logged and denies.
+func (a *Admin) can(r *http.Request, capability Capability, resource, action string) bool {
+	attrs := Attributes{
+		Principal:  PrincipalFromContext(r.Context()),
+		Capability: capability,
+		Resource:   resource,
+		Action:     action,
+	}
+	ok, err := permitted(r.Context(), a.cfg.authorizer, attrs)
+	if err != nil {
+		LoggerFromContext(r.Context()).Error("pgdesk: authorizer error",
+			"capability", capability, "resource", resource, "error", err)
+		return false
+	}
+	return ok
+}
+
 // guard resolves the principal and checks a capability before any query runs. On
 // deny it writes the appropriate response (redirect to login for protected GETs,
 // 401/403 otherwise) and returns false. A true result means the caller may
 // proceed.
-func (a *Admin) guard(w http.ResponseWriter, r *http.Request, cap Capability, resource, action string, az Authorizer) bool {
-	p := PrincipalFromContext(r.Context())
-	if p == nil {
+func (a *Admin) guard(w http.ResponseWriter, r *http.Request, capability Capability, resource, action string) bool {
+	if PrincipalFromContext(r.Context()) == nil {
 		a.denyUnauthenticated(w, r)
 		return false
 	}
-	ok, err := authorize(r.Context(), az, p, cap, resource, action)
-	if err != nil {
-		LoggerFromContext(r.Context()).Error("pgdesk: authorizer error",
-			"capability", cap, "resource", resource, "error", err)
-		a.renderError(w, r, http.StatusForbidden, "You are not permitted to perform this action.")
-		return false
-	}
-	if !ok {
+	if !a.can(r, capability, resource, action) {
 		a.renderError(w, r, http.StatusForbidden, "You are not permitted to perform this action.")
 		return false
 	}
@@ -170,15 +184,6 @@ func (a *Admin) denyUnauthenticated(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	a.renderError(w, r, http.StatusUnauthorized, "Authentication is required.")
-}
-
-// authorizerFor returns the resource's per-resource authorizer if set, else the
-// admin default (O6).
-func (a *Admin) authorizerFor(r *Resource) Authorizer {
-	if r.authorizer != nil {
-		return r.authorizer
-	}
-	return a.cfg.authorizer
 }
 
 // --- static assets (F8) ---
@@ -220,7 +225,7 @@ func (a *Admin) handleStatic(w http.ResponseWriter, r *http.Request) {
 // --- index (O6: CapAccessAdmin) ---
 
 func (a *Admin) handleIndex(w http.ResponseWriter, r *http.Request) {
-	if !a.guard(w, r, CapAccessAdmin, "", "", a.cfg.authorizer) {
+	if !a.guard(w, r, CapAccessAdmin, "", "") {
 		return
 	}
 	st := stateFromContext(r.Context())

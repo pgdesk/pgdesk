@@ -285,10 +285,10 @@ func TestEmbeddedTemplatesParseAndExecute(t *testing.T) {
 		{"index", indexView{Base: base, Resources: []resourceNav{{Name: "users", LabelPlural: "Users"}}}},
 		{"list", listView{
 			Base: base, Resource: resourceMeta{Name: "users", LabelPlural: "Users"},
-			Headers:    []sortHeader{{Label: "Email", URL: "/admin/users?sort=email"}},
-			Rows:       []rowView{{Cells: []cellView{{Value: xss}}, Key: "1"}},
-			Filters:    []filterField{{Label: "Status", Kind: "select", ParamKey: "f_status", Options: []string{"", "active"}}},
-			HasFilters: true, HasDetail: true, Page: 1,
+			Headers:       []sortHeader{{Label: "Email", URL: "/admin/users?sort=email"}},
+			Rows:          []rowView{{Cells: []cellView{{Value: xss}}, Key: "1"}},
+			InlineFilters: []filterField{{Label: "Status", Kind: "select", ParamKey: "f_status", Options: []string{"", "active"}}},
+			HasFilters:    true, HasDetail: true, Page: 1,
 		}},
 		{"detail", detailView{
 			Base: base, Resource: resourceMeta{Name: "users", Label: "User"},

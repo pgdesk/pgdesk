@@ -11,36 +11,44 @@
 </div>
 
 {{- if or .SearchEnabled .HasFilters }}
-<form class="pg-filters" method="get" action="{{ .Base.BasePath }}/{{ .Resource.Name }}">
-  {{- if .SearchEnabled }}
-  <div class="pg-filter">
-    <label>Search</label>
-    <input type="search" name="q" value="{{ .Query }}" placeholder="Search…" aria-label="Search">
-  </div>
-  {{- end }}
-  {{- range .Filters }}
-  {{- $f := . }}
-  <div class="pg-filter">
-    <label>{{ $f.Label }}</label>
-    {{- if or (eq $f.Kind "select") (eq $f.Kind "bool") }}
-    <select name="{{ $f.ParamKey }}">
-      {{- range $f.Options }}
-      <option value="{{ . }}"{{ if eq . $f.Value }} selected{{ end }}>{{ if eq . "" }}Any{{ else }}{{ . }}{{ end }}</option>
-      {{- end }}
-    </select>
-    {{- else if eq $f.Kind "daterange" }}
-    <input type="text" name="{{ $f.ParamKey }}" value="{{ $f.Value }}" placeholder="From">
-    <input type="text" name="{{ $f.ParamKeyTo }}" value="{{ $f.ValueTo }}" placeholder="To">
-    {{- else }}
-    <input type="text" name="{{ $f.ParamKey }}" value="{{ $f.Value }}">
+<div class="pg-filterbar">
+  <input type="checkbox" id="pg-filter-toggle" class="pg-filter-toggle">
+  <label for="pg-filter-toggle" class="pg-btn pg-filter-trigger">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+    Filters{{ if .ActiveCount }} <span class="pg-count">{{ .ActiveCount }}</span>{{ end }}
+  </label>
+  <form class="pg-filters" method="get" action="{{ .Base.BasePath }}/{{ .Resource.Name }}">
+    {{- if .SearchEnabled }}
+    <div class="pg-filter">
+      <label for="pg-f-q">Search</label>
+      <input id="pg-f-q" type="search" name="q" value="{{ .Query }}" placeholder="Search…">
+    </div>
+    {{- end }}
+    {{- range .InlineFilters }}{{ template "filterControl" . }}{{ end }}
+    {{- if .HasOverflow }}
+    <details class="pg-more">
+      <summary class="pg-btn">More filters</summary>
+      <div class="pg-more-panel">
+        {{- range .OverflowFilters }}{{ template "filterControl" . }}{{ end }}
+      </div>
+    </details>
+    {{- end }}
+    <div class="pg-filter pg-filter-actions">
+      <button type="submit">Apply</button>
+      <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Reset</a>
+    </div>
+  </form>
+  {{- if .ActiveChips }}
+  <div class="pg-chips" aria-label="Active filters">
+    {{- range .ActiveChips }}
+    <a class="pg-chip" href="{{ .RemoveURL }}">
+      <span class="pg-chip-key">{{ .Label }}:</span>&nbsp;{{ .Value }}
+      <span class="pg-chip-x" aria-hidden="true">×</span><span class="pg-sr-only">Remove {{ .Label }} filter</span>
+    </a>
     {{- end }}
   </div>
   {{- end }}
-  <div class="pg-filter pg-filter-actions">
-    <button type="submit">Apply</button>
-    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Reset</a>
-  </div>
-</form>
+</div>
 {{- end }}
 
 {{- if .HasActions }}
@@ -57,17 +65,18 @@
   </div>
 {{- end }}
 <table class="pg-table">
+  <caption class="pg-sr-only">{{ .Resource.LabelPlural }}</caption>
   <thead>
     <tr>
       {{- if .HasActions }}<th class="pg-check-col"><input type="checkbox" data-select-all aria-label="Select all"></th>{{ end }}
       {{- range .Headers }}
-      <th>
+      <th aria-sort="{{ if .Active }}{{ if .Desc }}descending{{ else }}ascending{{ end }}{{ else }}none{{ end }}">
         <a class="pg-sort{{ if .Active }} pg-sort-active{{ end }}" href="{{ .URL }}">
           {{ .Label }}{{ if .Active }}{{ if .Desc }} ▾{{ else }} ▴{{ end }}{{ end }}
         </a>
       </th>
       {{- end }}
-      {{- if .HasDetail }}<th class="pg-actions-col">·</th>{{ end }}
+      {{- if .HasDetail }}<th class="pg-actions-col"><span class="pg-sr-only">Details</span></th>{{ end }}
     </tr>
   </thead>
   <tbody>

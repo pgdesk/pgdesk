@@ -94,12 +94,14 @@ func TestBuildListWithFiltersAndSearch(t *testing.T) {
 
 func TestBuildFKLabels(t *testing.T) {
 	ref := testTable() // reuse as a stand-in referenced table
-	sql, args := BuildFKLabels(ref, col(ref, "id"), col(ref, "email"), []any{int64(1), int64(2)})
-	if !strings.Contains(sql, `SELECT "id", "email" FROM "public"."users" WHERE "id" = ANY($1)`) {
+	sql, args := BuildFKLabels(ref, col(ref, "id"), col(ref, "email"), []any{int64(1), int64(2)}, nil)
+	// Individual $N placeholders, not "= ANY($1)": a []any array arg fails to
+	// encode under pgx's PgBouncer-compatible modes.
+	if !strings.Contains(sql, `SELECT "id", "email" FROM "public"."users" WHERE "id" IN ($1, $2)`) {
 		t.Fatalf("unexpected FK label SQL: %s", sql)
 	}
-	if len(args) != 1 {
-		t.Fatalf("FK label args = %v, want one array arg", args)
+	if len(args) != 2 {
+		t.Fatalf("FK label args = %v, want one per key", args)
 	}
 }
 

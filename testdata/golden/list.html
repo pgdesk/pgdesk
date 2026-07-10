@@ -10,6 +10,7 @@
 </script>
 </head>
 <body>
+<a class="pg-skip" href="#pg-main">Skip to content</a>
 <header class="pg-header">
   <a class="pg-brand" href="/admin/">
     <span class="pg-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="5" width="16" height="3.6" rx="1.4"/><rect x="4" y="10.4" width="16" height="3.2" rx="1.4" opacity=".85"/><rect x="4" y="15.6" width="10" height="3.2" rx="1.4" opacity=".6"/></svg></span>
@@ -28,7 +29,7 @@
     <ul>
     </ul>
   </nav>
-  <main class="pg-main">
+  <main class="pg-main" id="pg-main" tabindex="-1">
 <div class="pg-list-header">
   <h1>Users</h1>
   <div class="pg-list-header-actions">
@@ -36,19 +37,31 @@
     <a class="pg-btn pg-btn-primary" href="/admin/users/new">Add User</a>
   </div>
 </div>
-<form class="pg-filters" method="get" action="/admin/users">
-  <div class="pg-filter">
-    <label>Status</label>
-    <select name="f_status">
-      <option value="" selected>Any</option>
-      <option value="active">active</option>
-    </select>
+<div class="pg-filterbar">
+  <input type="checkbox" id="pg-filter-toggle" class="pg-filter-toggle">
+  <label for="pg-filter-toggle" class="pg-btn pg-filter-trigger">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+    Filters <span class="pg-count">1</span>
+  </label>
+  <form class="pg-filters" method="get" action="/admin/users"><div class="pg-filter">
+  <label for="pg-f-f_status">Status</label>
+  <select id="pg-f-f_status" name="f_status">
+    <option value="" selected>Any</option>
+    <option value="active">active</option>
+  </select>
+</div>
+    <div class="pg-filter pg-filter-actions">
+      <button type="submit">Apply</button>
+      <a class="pg-btn" href="/admin/users">Reset</a>
+    </div>
+  </form>
+  <div class="pg-chips" aria-label="Active filters">
+    <a class="pg-chip" href="/admin/users">
+      <span class="pg-chip-key">Status:</span>&nbsp;&lt;script&gt;alert(&#39;x&#39;)&lt;/script&gt;
+      <span class="pg-chip-x" aria-hidden="true">×</span><span class="pg-sr-only">Remove Status filter</span>
+    </a>
   </div>
-  <div class="pg-filter pg-filter-actions">
-    <button type="submit">Apply</button>
-    <a class="pg-btn" href="/admin/users">Reset</a>
-  </div>
-</form>
+</div>
 <form method="post" action="/admin/users/action" class="pg-action-form">
   <input type="hidden" name="_pgdesk_csrf" value="CSRF">
   <div class="pg-action-bar">
@@ -59,13 +72,14 @@
     <button type="submit">Apply to selected</button>
   </div>
 <table class="pg-table">
+  <caption class="pg-sr-only">Users</caption>
   <thead>
     <tr><th class="pg-check-col"><input type="checkbox" data-select-all aria-label="Select all"></th>
-      <th>
+      <th aria-sort="none">
         <a class="pg-sort" href="/admin/users?sort=email">
           Email
         </a>
-      </th><th class="pg-actions-col">·</th>
+      </th><th class="pg-actions-col"><span class="pg-sr-only">Details</span></th>
     </tr>
   </thead>
   <tbody>

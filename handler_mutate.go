@@ -64,7 +64,7 @@ func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be created.")
 		return
 	}
-	if !a.guard(w, r, CapCreate, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapCreate, res.name, "") {
 		return
 	}
 	display := visibleColumns(res.table.Columns(), res)
@@ -86,7 +86,12 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be created.")
 		return
 	}
-	if !a.guard(w, r, CapCreate, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapCreate, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapCreate, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.maxBodyBytes)
@@ -114,6 +119,9 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 		setCols = append(setCols, c)
 		setVals = append(setVals, formValueForColumn(r, c))
 	}
+	// Pin equality-scoped columns to their scope value so a scoped operator cannot
+	// create a row outside their scope (O6).
+	setCols, setVals = enforceScope(setCols, setVals, scope)
 	returning := res.table.Columns()
 
 	sql, args, err := query.InsertRow(res.table, setCols, setVals, returning)
@@ -196,7 +204,12 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be deleted.")
 		return
 	}
-	if !a.guard(w, r, CapDelete, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapDelete, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapDelete, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.maxBodyBytes)
@@ -216,7 +229,7 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 	}
 
 	returning := res.table.Columns()
-	sql, args, err := query.DeleteRow(res.table, res.keyCols, keyVals, returning)
+	sql, args, err := query.DeleteRow(res.table, res.keyCols, keyVals, returning, scope)
 	if err != nil {
 		a.serverError(w, r, "build delete", err)
 		return
@@ -225,6 +238,10 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := a.queryContext(r)
 	defer cancel()
 	if delErr := a.execDeleteTx(ctx, r, res, sql, args, returning, keyVals); delErr != nil {
+		if errors.Is(delErr, errNotFound) {
+			a.renderError(w, r, http.StatusNotFound, "Record not found.")
+			return
+		}
 		me := mapPgError(delErr, res.constraintMsgs, res.table.UniqueColumns)
 		if me.empty() {
 			a.dbError(w, r, "delete", delErr)
@@ -239,7 +256,10 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 }
 
 // execDeleteTx runs the DELETE and audit in one transaction (O4). The RETURNING
-// row is the before-snapshot; a 0-row delete (already gone) is not an error.
+// row is the before-snapshot. A 0-row delete means the row does not exist for this
+// principal — already gone, or outside their scope (O6) — and reports errNotFound
+// rather than a success the operator did not get. The two are deliberately
+// indistinguishable so the response cannot be used to probe for rows.
 func (a *Admin) execDeleteTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any) error {
 	var before map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
@@ -253,7 +273,7 @@ func (a *Admin) execDeleteTx(ctx context.Context, r *http.Request, res *Resource
 			return err
 		}
 		if before == nil {
-			return nil // already deleted; nothing to audit
+			return errNotFound
 		}
 		if a.cfg.txAudit != nil {
 			ev := a.buildAuditEvent(r, res, AuditDelete, keyVals, before, nil)

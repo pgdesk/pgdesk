@@ -45,7 +45,12 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "Unknown resource.")
 		return
 	}
-	if !a.guard(w, r, CapList, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapList, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapList, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 
@@ -72,7 +77,7 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	offset := (lr.page - 1) * lr.pageSize
 	sql, args, err := query.BuildList(res.table, query.ListParams{
 		Columns:  fetch,
-		Filters:  lr.filters,
+		Filters:  withScope(lr.filters, scope),
 		Search:   lr.search,
 		Sort:     lr.sortCol,
 		SortDesc: lr.sortDesc,
@@ -142,25 +147,30 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	actions := a.visibleActions(r, res)
+	inlineFilters, overflowFilters, chips := a.filterViews(r, res, lr)
 	data := listView{
-		Base:          a.baseView(r, res.LabelPlural),
-		Resource:      a.resourceMeta(res),
-		SearchEnabled: len(textColumns(res.searchFields)) > 0,
-		Query:         lr.q,
-		Headers:       a.sortHeaders(r, res, display, lr),
-		Rows:          rowViews,
-		HasDetail:     res.hasKey(),
-		CanCreate:     res.writable(),
-		Actions:       actions,
-		HasActions:    len(actions) > 0,
-		ExportURL:     a.exportURL(r, res),
-		Filters:       a.filterFields(res, lr),
-		HasFilters:    len(res.filters) > 0,
-		Page:          lr.page,
-		HasPrev:       lr.page > 1,
-		HasNext:       hasNext,
-		PrevURL:       a.pageURL(r, res, lr.page-1),
-		NextURL:       a.pageURL(r, res, lr.page+1),
+		Base:            a.baseView(r, res.LabelPlural),
+		Resource:        a.resourceMeta(res),
+		SearchEnabled:   len(textColumns(res.searchFields)) > 0,
+		Query:           lr.q,
+		Headers:         a.sortHeaders(r, res, display, lr),
+		Rows:            rowViews,
+		HasDetail:       res.hasKey() && a.can(r, CapView, res.name, ""),
+		CanCreate:       res.writable() && a.can(r, CapCreate, res.name, ""),
+		Actions:         actions,
+		HasActions:      len(actions) > 0,
+		ExportURL:       a.exportURL(r, res),
+		InlineFilters:   inlineFilters,
+		OverflowFilters: overflowFilters,
+		HasOverflow:     len(overflowFilters) > 0,
+		ActiveChips:     chips,
+		ActiveCount:     len(chips),
+		HasFilters:      len(res.filters) > 0,
+		Page:            lr.page,
+		HasPrev:         lr.page > 1,
+		HasNext:         hasNext,
+		PrevURL:         a.pageURL(r, res, lr.page-1),
+		NextURL:         a.pageURL(r, res, lr.page+1),
 	}
 	a.renderPage(w, r, http.StatusOK, "list", data)
 }
@@ -176,7 +186,12 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "This resource has no detail view.")
 		return
 	}
-	if !a.guard(w, r, CapView, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapView, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapView, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 
@@ -187,7 +202,7 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 	}
 
 	display := visibleColumns(res.table.Columns(), res)
-	row, _, err := a.fetchRow(r, res, display, keyVals)
+	row, _, err := a.fetchRow(r, res, display, keyVals, scope)
 	if err != nil {
 		a.handleFetchError(w, r, err)
 		return
@@ -201,8 +216,8 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Base:      a.baseView(r, res.Label),
 		Resource:  a.resourceMeta(res),
 		Key:       r.PathValue("key"),
-		CanEdit:   res.writable(),
-		CanDelete: res.writable(),
+		CanEdit:   res.writable() && a.can(r, CapUpdate, res.name, ""),
+		CanDelete: res.writable() && a.can(r, CapDelete, res.name, ""),
 		Fields:    fields,
 	}
 	a.renderPage(w, r, http.StatusOK, "detail", data)
@@ -216,7 +231,12 @@ func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be edited.")
 		return
 	}
-	if !a.guard(w, r, CapUpdate, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapUpdate, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapUpdate, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 	keyVals, err := query.DecodeKey(res.keyCols, r.PathValue("key"))
@@ -225,7 +245,7 @@ func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	display := visibleColumns(res.table.Columns(), res)
-	row, version, err := a.fetchRow(r, res, display, keyVals)
+	row, version, err := a.fetchRow(r, res, display, keyVals, scope)
 	if err != nil {
 		a.handleFetchError(w, r, err)
 		return
@@ -251,7 +271,12 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be edited.")
 		return
 	}
-	if !a.guard(w, r, CapUpdate, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapUpdate, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapUpdate, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 
@@ -280,9 +305,12 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	for i, c := range editable {
 		setVals[i] = formValueForColumn(r, c)
 	}
+	// Pin equality-scoped columns to their scope value so a scoped operator cannot
+	// move a row out of their scope by editing it (O6).
+	setCols, setVals := enforceScope(editable, setVals, scope)
 	returning := res.table.Columns()
 
-	sql, args, err := query.UpdateRow(res.table, editable, setVals, res.keyCols, keyVals, version, res.versionStrategy(), returning)
+	sql, args, err := query.UpdateRow(res.table, setCols, setVals, res.keyCols, keyVals, version, res.versionStrategy(), returning, scope)
 	if err != nil {
 		a.serverError(w, r, "build update", err)
 		return
@@ -291,10 +319,13 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := a.queryContext(r)
 	defer cancel()
 
-	result, updErr := a.execUpdateTx(ctx, r, res, sql, args, returning, keyVals)
+	_, updErr := a.execUpdateTx(ctx, r, res, sql, args, returning, keyVals, scope)
 	switch {
+	case errors.Is(updErr, errNotFound):
+		a.renderError(w, r, http.StatusNotFound, "Record not found.")
+		return
 	case errors.Is(updErr, errConflict):
-		a.renderConflict(w, r, res, keyVals, version)
+		a.renderConflict(w, r, res, keyVals, version, scope)
 		return
 	case updErr != nil:
 		me := mapPgError(updErr, res.constraintMsgs, res.table.UniqueColumns)
@@ -302,13 +333,12 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 			a.dbError(w, r, "update", updErr)
 			return
 		}
-		a.renderFormWithErrors(w, r, res, keyVals, version, me)
+		a.renderFormWithErrors(w, r, res, keyVals, version, me, scope)
 		return
 	}
 
 	// Success: redirect to the detail page (F4 keeps this under the base path).
 	dest := a.safeRedirect(a.cfg.basePath + "/" + res.name + "/" + r.PathValue("key"))
-	_ = result
 	a.setFlash(w, "info", res.Label+" saved.")
 	http.Redirect(w, r, dest, http.StatusSeeOther)
 }
@@ -358,8 +388,11 @@ func (a *Admin) bestEffortAudit(ctx context.Context, ev AuditEvent) {
 }
 
 // execUpdateTx runs the UPDATE and audit in one transaction (O4). A 0-row result
-// means another transaction changed the row first (O1) → errConflict.
-func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any) (map[string]any, error) {
+// is ambiguous: the row may have changed under us (O1), or it may lie outside the
+// principal's scope (O6). rowInScope tells the two apart on the failure path only,
+// inside the same transaction, so a forbidden edit reports 404 rather than telling
+// the operator to reload and retry forever.
+func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any, scope []query.Filter) (map[string]any, error) {
 	var after map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
 		rows, err := tx.Query(ctx, sql, args...)
@@ -372,7 +405,7 @@ func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource
 			return err
 		}
 		if after == nil {
-			return errConflict
+			return a.zeroRowReason(ctx, tx, res, keyVals, scope)
 		}
 		if a.cfg.txAudit != nil {
 			ev := a.buildAuditEvent(r, res, AuditUpdate, keyVals, nil, after)
@@ -390,8 +423,8 @@ func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource
 }
 
 // fetchRow loads a single row's columns plus its version token (O1).
-func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Column, keyVals []any) (map[string]any, string, error) {
-	sql, args, err := query.SelectRow(res.table, cols, res.keyCols, keyVals, res.versionStrategy())
+func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Column, keyVals []any, scope []query.Filter) (map[string]any, string, error) {
+	sql, args, err := query.SelectRow(res.table, cols, res.keyCols, keyVals, res.versionStrategy(), scope)
 	if err != nil {
 		return nil, "", err
 	}
@@ -425,6 +458,70 @@ func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Colu
 }
 
 var errNotFound = errors.New("pgdesk: row not found")
+
+// withScope returns the request filters ANDed with the principal's row
+// constraints, without aliasing either input.
+func withScope(filters, scope []query.Filter) []query.Filter {
+	if len(scope) == 0 {
+		return filters
+	}
+	out := make([]query.Filter, 0, len(filters)+len(scope))
+	out = append(out, filters...)
+	return append(out, scope...)
+}
+
+// enforceScope pins every equality-scoped column to its constraint value on a
+// write, overriding whatever the operator submitted and adding the column if it
+// was absent. This makes INSERT and UPDATE obey the same row scope the WHERE
+// clause enforces on reads: a scoped operator can neither create a row outside
+// their scope nor move one out of it.
+//
+// Only equality (Eq) constraints pin a value. A Ne or In constraint has no single
+// value to write, so it is left to the read/WHERE side (which still stops an
+// UPDATE from targeting an out-of-scope row); a host that must also stop such a
+// column from being written marks it Readonly. Inputs are not aliased.
+func enforceScope(cols []*introspect.Column, vals []any, scope []query.Filter) ([]*introspect.Column, []any) {
+	outCols := append([]*introspect.Column(nil), cols...)
+	outVals := append([]any(nil), vals...)
+	have := make(map[string]int, len(outCols))
+	for i, c := range outCols {
+		have[c.Name] = i
+	}
+	for _, f := range scope {
+		if f.Op != query.OpEq || len(f.Values) != 1 {
+			continue
+		}
+		if i, ok := have[f.Col.Name]; ok {
+			outVals[i] = f.Values[0]
+			continue
+		}
+		outCols = append(outCols, f.Col)
+		outVals = append(outVals, f.Values[0])
+		have[f.Col.Name] = len(outCols) - 1
+	}
+	return outCols, outVals
+}
+
+// zeroRowReason explains why a scoped UPDATE or DELETE matched nothing. It probes
+// for the row within scope but WITHOUT the version guard: a row that still does
+// not appear is one the principal cannot reach (404, which also refuses to
+// confirm the row exists); a row that does appear was changed by someone else
+// (409). The probe runs only after the mutation has already failed, in the same
+// transaction, so its answer cannot go stale.
+func (a *Admin) zeroRowReason(ctx context.Context, tx pgx.Tx, res *Resource, keyVals []any, scope []query.Filter) error {
+	sql, args, err := query.ExistsRow(res.table, res.keyCols, keyVals, scope)
+	if err != nil {
+		return err
+	}
+	var one int
+	if err := tx.QueryRow(ctx, sql, args...).Scan(&one); err != nil {
+		if errors.Is(err, pgx.ErrNoRows) {
+			return errNotFound
+		}
+		return err
+	}
+	return errConflict
+}
 
 func (a *Admin) handleFetchError(w http.ResponseWriter, r *http.Request, err error) {
 	if errors.Is(err, errNotFound) {

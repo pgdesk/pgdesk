@@ -42,7 +42,11 @@ func InsertRow(t *introspect.Table, cols []*introspect.Column, vals []any, retur
 // DeleteRow builds a parameterized DELETE by key (D3). keyCols/keyVals are the
 // resource's key columns and decoded values. returning, when non-empty, reads the
 // deleted row back (for the audit before-snapshot and 0-row detection).
-func DeleteRow(t *introspect.Table, keyCols []*introspect.Column, keyVals []any, returning []*introspect.Column) (string, []any, error) {
+//
+// scope holds the principal's row constraints (O6), ANDed into the DELETE's own
+// WHERE. DELETE carries no version token, so this is the only thing that makes a
+// row-level delete rule race-free.
+func DeleteRow(t *introspect.Table, keyCols []*introspect.Column, keyVals []any, returning []*introspect.Column, scope []Filter) (string, []any, error) {
 	if len(keyCols) == 0 {
 		return "", nil, ErrNoKey
 	}
@@ -55,6 +59,7 @@ func DeleteRow(t *introspect.Table, keyCols []*introspect.Column, keyVals []any,
 	b.WriteString(QualifyIdent(t.Schema, t.Name))
 	b.WriteString(" WHERE ")
 	writeKeyPredicate(&b, args, keyCols, keyVals)
+	writeScope(&b, args, scope)
 	if len(returning) > 0 {
 		b.WriteString(" RETURNING ")
 		writeColumnList(&b, returning)

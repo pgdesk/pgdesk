@@ -35,7 +35,7 @@ func main() {
 
 	admin, err := pgdesk.New(pool,
 		pgdesk.WithSecretKey([]byte("dev-only-secret-change-me")),
-		pgdesk.WithAuthorizer(pgdesk.AllowAll{}),
+		pgdesk.WithAuthorizer(pgdesk.AllowAll),
 		pgdesk.WithMiddleware(demoLogin), // supplies a Principal; use real auth in production
 		pgdesk.WithResource("users", func(r *pgdesk.Resource) {
 			r.ListDisplay("id", "email", "active", "created_at")

@@ -37,11 +37,12 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusBadRequest, "Unknown action.")
 		return
 	}
-	if !a.guard(w, r, CapRunAction, res.name, act.name, a.authorizerFor(res)) {
+	if !a.guard(w, r, CapRunAction, res.name, act.name) {
 		return
 	}
-	if act.allowed != nil && !act.allowed(PrincipalFromContext(r.Context())) {
-		a.renderError(w, r, http.StatusForbidden, "You are not permitted to run this action.")
+	scope, err := a.scopeFor(r, res, CapRunAction, act.name)
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 
@@ -70,7 +71,7 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := a.queryContext(r)
 	defer cancel()
 
-	msg, runErr := a.execActionTx(ctx, r, res, act, keys)
+	msg, runErr := a.execActionTx(ctx, r, res, act, keys, scope)
 	if runErr != nil {
 		LoggerFromContext(r.Context()).Warn("pgdesk: action failed",
 			"resource", res.name, "action", act.name, "error", runErr)
@@ -85,11 +86,38 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.safeRedirect(a.cfg.basePath+"/"+res.name), http.StatusSeeOther)
 }
 
+// vetActionKeys refuses the action unless every selected key names exactly one
+// row the principal may reach. Counting inside the action's transaction keeps the
+// check and the action consistent.
+func (a *Admin) vetActionKeys(ctx context.Context, tx pgx.Tx, res *Resource, keys [][]any, scope []query.Filter) error {
+	sql, args, err := query.CountRowsInScope(res.table, res.keyCols, keys, scope)
+	if err != nil {
+		return err
+	}
+	var n int64
+	if err := tx.QueryRow(ctx, sql, args...).Scan(&n); err != nil {
+		return err
+	}
+	if n != int64(len(keys)) {
+		return fmt.Errorf("%w: only %d of %d selected rows are visible to this principal", errNotFound, n, len(keys))
+	}
+	return nil
+}
+
 // execActionTx runs the action and its audit record in one transaction (O4).
-func (a *Admin) execActionTx(ctx context.Context, r *http.Request, res *Resource, act *action, keys [][]any) (string, error) {
+//
+// An action runs host-authored SQL that pgdesk cannot rewrite, so the selected
+// keys are vetted first, inside the same transaction: every key must name a row
+// that exists and lies within the principal's scope (O6). A key that is out of
+// scope, absent, or duplicated refuses the whole action rather than silently
+// operating on a subset.
+func (a *Admin) execActionTx(ctx context.Context, r *http.Request, res *Resource, act *action, keys [][]any, scope []query.Filter) (string, error) {
 	var msg string
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
-		m, err := act.fn(ctx, tx, keys)
+		if err := a.vetActionKeys(ctx, tx, res, keys, scope); err != nil {
+			return err
+		}
+		m, err := act.fn(ctx, tx, Keys{cols: res.keyCols, vals: keys})
 		if err != nil {
 			return err
 		}

@@ -65,11 +65,27 @@ func IncludeViews(names ...string) AutoRegisterOption {
 // autoRegister appends default resources for eligible tables to the state being
 // built. existing holds already-added (explicit) resources, which win. add
 // registers a resource in discovery order.
+//
+// Each resource is built from the table the loop discovered, never by re-resolving
+// its bare name: two schemas may hold a table of the same name, and a resource is
+// keyed by the bare name alone. Such a collision fails the build rather than
+// exposing whichever table sorts first (D2).
 func (a *Admin) autoRegister(cat *introspect.Catalog, add func(string, *Resource), existing map[string]*Resource) error {
 	ar := a.cfg.autoRegister
+
+	// existing is the live resource map that add writes into, so snapshot the
+	// explicit names first. Testing against it directly would let this loop's own
+	// first "users" mask a second "users" from another schema as if it had been
+	// registered by hand.
+	explicit := make(map[string]bool, len(existing))
+	for name := range existing {
+		explicit[name] = true
+	}
+
+	seen := map[string]*introspect.Table{}
 	for _, tbl := range cat.Tables() {
 		name := tbl.Name
-		if existing[name] != nil {
+		if explicit[name] {
 			continue // explicit registration wins
 		}
 		if ar.excludeTables[name] {
@@ -81,7 +97,16 @@ func (a *Admin) autoRegister(cat *introspect.Catalog, add func(string, *Resource
 		if !tbl.HasKey() {
 			continue // never publish an unkeyed table
 		}
-		r, err := a.buildResource(cat, name, nil)
+		if !isURLSafe(name) {
+			continue // the name is the route; it cannot address this table
+		}
+		if prev, dup := seen[name]; dup {
+			return fmt.Errorf("auto-register %q: %w: %q and %q",
+				name, ErrAmbiguousTable, prev.Schema, tbl.Schema)
+		}
+		seen[name] = tbl
+
+		r, err := a.buildResourceFrom(tbl, name, nil)
 		if err != nil {
 			return fmt.Errorf("auto-register %q: %w", name, err)
 		}

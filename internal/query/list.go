@@ -81,6 +81,8 @@ func emitFilter(args *Args, f Filter) string {
 	switch f.Op {
 	case OpEq:
 		return col + " = " + args.Add(f.Values[0])
+	case OpNe:
+		return col + " <> " + args.Add(f.Values[0])
 	case OpILike:
 		return col + " ILIKE " + args.Add(f.Values[0])
 	case OpLt:
@@ -118,10 +120,20 @@ func emitSearch(args *Args, s *SearchSpec) string {
 }
 
 // BuildFKLabels builds the batched foreign-key label lookup (D4): one
-// "SELECT pk, label FROM ref WHERE pk = ANY($1)" for a whole page of FK values,
-// instead of a generated JOIN or N+1 queries. pkVals are the distinct referenced
-// key values collected across the page.
-func BuildFKLabels(ref *introspect.Table, pkCol, labelCol *introspect.Column, pkVals []any) (string, []any) {
+// "SELECT pk, label FROM ref WHERE pk IN ($1, $2, ...)" for a whole page of FK
+// values, instead of a generated JOIN or N+1 queries. pkVals are the distinct
+// referenced key values collected across the page.
+//
+// The keys are bound as individual $N placeholders rather than a single array
+// parameter. A []any array argument cannot be encoded when pgx runs without a
+// prepared-statement describe step (QueryExecModeExec / SimpleProtocol, the modes
+// used behind a transaction-pooling PgBouncer), so an array bind would silently
+// break FK labels on that common topology. Individual placeholders encode in
+// every mode. This mirrors emitFilter's handling of OpIn.
+//
+// scope holds the principal's row constraints on the REFERENCED resource (O6): a
+// label is a read of another table, so it must obey that table's own scope.
+func BuildFKLabels(ref *introspect.Table, pkCol, labelCol *introspect.Column, pkVals []any, scope []Filter) (string, []any) {
 	var b strings.Builder
 	args := &Args{}
 	b.WriteString("SELECT ")
@@ -132,8 +144,14 @@ func BuildFKLabels(ref *introspect.Table, pkCol, labelCol *introspect.Column, pk
 	b.WriteString(QualifyIdent(ref.Schema, ref.Name))
 	b.WriteString(" WHERE ")
 	b.WriteString(Ident(pkCol.Name))
-	b.WriteString(" = ANY(")
-	b.WriteString(args.Add(pkVals))
+	b.WriteString(" IN (")
+	for i, v := range pkVals {
+		if i > 0 {
+			b.WriteString(", ")
+		}
+		b.WriteString(args.Add(v))
+	}
 	b.WriteString(")")
+	writeScope(&b, args, scope)
 	return b.String(), args.Values()
 }

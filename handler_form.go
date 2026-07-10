@@ -4,14 +4,15 @@ import (
 	"net/http"
 
 	"github.com/pgdesk/pgdesk/internal/introspect"
+	"github.com/pgdesk/pgdesk/internal/query"
 )
 
 // renderFormWithErrors re-renders the edit form after a database validation
 // error (D7), preserving the operator's submitted values and attaching inline
 // field errors. Status 422 signals the input was well-formed but rejected.
-func (a *Admin) renderFormWithErrors(w http.ResponseWriter, r *http.Request, res *Resource, keyVals []any, version string, me mappedError) {
+func (a *Admin) renderFormWithErrors(w http.ResponseWriter, r *http.Request, res *Resource, keyVals []any, version string, me mappedError, scope []query.Filter) {
 	display := visibleColumns(res.table.Columns(), res)
-	current, _, err := a.fetchRow(r, res, display, keyVals)
+	current, _, err := a.fetchRow(r, res, display, keyVals, scope)
 	if err != nil {
 		current = map[string]any{} // row may be gone; still show the form
 	}
@@ -34,9 +35,9 @@ func (a *Admin) renderFormWithErrors(w http.ResponseWriter, r *http.Request, res
 // renderConflict renders the O1 concurrent-edit conflict page: the operator's
 // attempted values, the current DB values alongside, a clear notice, and the
 // current version token so a resubmit can win. Status 409.
-func (a *Admin) renderConflict(w http.ResponseWriter, r *http.Request, res *Resource, keyVals []any, submittedVersion string) {
+func (a *Admin) renderConflict(w http.ResponseWriter, r *http.Request, res *Resource, keyVals []any, submittedVersion string, scope []query.Filter) {
 	display := visibleColumns(res.table.Columns(), res)
-	current, currentVersion, err := a.fetchRow(r, res, display, keyVals)
+	current, currentVersion, err := a.fetchRow(r, res, display, keyVals, scope)
 	if err != nil {
 		// The row was deleted out from under the edit; treat as not found.
 		a.handleFetchError(w, r, err)

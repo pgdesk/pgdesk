@@ -41,11 +41,14 @@ func TestGoldenPages(t *testing.T) {
 	}{
 		"list": {"list", listView{
 			Base: base, Resource: resourceMeta{Name: "users", Label: "User", LabelPlural: "Users"},
-			Headers:    []sortHeader{{Label: "Email", URL: "/admin/users?sort=email"}},
-			Rows:       []rowView{{Cells: []cellView{{Value: xss}, {Label: "ref " + xss, Link: "/admin/orgs/1"}}, Key: "1"}},
-			Filters:    []filterField{{Label: "Status", Kind: "select", ParamKey: "f_status", Options: []string{"", "active"}}},
-			Actions:    []actionMeta{{Name: "suspend", Label: "Suspend " + xss, Confirm: "Sure?"}},
-			HasActions: true, HasFilters: true, HasDetail: true, CanCreate: true,
+			Headers:       []sortHeader{{Label: "Email", URL: "/admin/users?sort=email"}},
+			Rows:          []rowView{{Cells: []cellView{{Value: xss}, {Label: "ref " + xss, Link: "/admin/orgs/1"}}, Key: "1"}},
+			InlineFilters: []filterField{{Label: "Status", Kind: "select", ParamKey: "f_status", Options: []string{"", "active"}}},
+			// An active chip whose value is request-derived: it must be escaped (F1).
+			ActiveChips: []filterChip{{Label: "Status", Value: xss, RemoveURL: "/admin/users"}},
+			ActiveCount: 1,
+			Actions:     []actionMeta{{Name: "suspend", Label: "Suspend " + xss, Confirm: "Sure?"}},
+			HasActions:  true, HasFilters: true, HasDetail: true, CanCreate: true,
 			ExportURL: "/admin/users/export.csv", Page: 1,
 		}},
 		"detail": {"detail", detailView{

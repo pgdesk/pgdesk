@@ -169,12 +169,24 @@ func (a *Admin) buildState(cat *introspect.Catalog) (*adminState, error) {
 	return &adminState{catalog: cat, resources: resources, order: order}, nil
 }
 
-// buildResource resolves a table and runs its config, enforcing the column and
-// CSRF-secret invariants (D2, D5).
+// buildResource resolves a table by name and runs its config.
 func (a *Admin) buildResource(cat *introspect.Catalog, name string, fn func(*Resource)) (*Resource, error) {
 	tbl, err := resolveTable(cat, a.cfg.schemas, name)
 	if err != nil {
 		return nil, err
+	}
+	return a.buildResourceFrom(tbl, name, fn)
+}
+
+// buildResourceFrom runs a resource's config against an already-resolved table,
+// enforcing the name, column, and CSRF-secret invariants (D2, D5).
+//
+// autoRegister calls this directly. It already holds the table it discovered and
+// must not re-resolve the bare name, which would bind the resource to whichever
+// schema comes first in the configured list rather than to the discovered table.
+func (a *Admin) buildResourceFrom(tbl *introspect.Table, name string, fn func(*Resource)) (*Resource, error) {
+	if !isURLSafe(name) {
+		return nil, fmt.Errorf("%w: %q", ErrUnsafeName, name)
 	}
 	r := newResource(name, tbl, a.cfg.defaultPageSize)
 	if fn != nil {
@@ -192,13 +204,28 @@ func (a *Admin) buildResource(cat *introspect.Catalog, name string, fn func(*Res
 }
 
 // resolveTable finds a table by name across the configured schemas.
+//
+// A name matching a table in more than one schema is ambiguous and fails the
+// build (D2). Returning the first match would silently bind the resource — and
+// every policy written against its name — to whichever schema happened to be
+// listed first, leaving the other table permanently unreachable.
 func resolveTable(cat *introspect.Catalog, schemas []string, name string) (*introspect.Table, error) {
+	var found *introspect.Table
 	for _, s := range schemas {
-		if t, ok := cat.Table(s, name); ok {
-			return t, nil
+		t, ok := cat.Table(s, name)
+		if !ok {
+			continue
 		}
+		if found != nil {
+			return nil, fmt.Errorf("%w: %q exists in both %q and %q",
+				ErrAmbiguousTable, name, found.Schema, t.Schema)
+		}
+		found = t
 	}
-	return nil, ErrUnknownTable
+	if found == nil {
+		return nil, ErrUnknownTable
+	}
+	return found, nil
 }
 
 // Mount registers the admin's routes on the given ServeMux under the configured

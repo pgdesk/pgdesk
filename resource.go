@@ -38,7 +38,6 @@ type Resource struct {
 	fields         map[string]*fieldConfig
 	constraintMsgs map[string]string
 	middleware     []Middleware
-	authorizer     Authorizer // per-resource override; nil → admin default
 
 	actions     map[string]*action
 	actionOrder []string
@@ -205,12 +204,6 @@ func (r *Resource) Use(mw ...Middleware) {
 	r.middleware = append(r.middleware, mw...)
 }
 
-// Authorize sets a per-resource Authorizer overriding the admin default for this
-// resource's routes.
-func (r *Resource) Authorize(az Authorizer) {
-	r.authorizer = az
-}
-
 // Action registers a row/bulk action. name must be URL-safe and unique on the
 // resource; label is shown in the action menu; fn runs against the selected rows
 // inside a transaction (O4). Registering an action requires the resource be
@@ -238,7 +231,8 @@ func (r *Resource) Action(name, label string, fn ActionFunc, opts ...ActionOptio
 	r.actions[name] = act
 }
 
-// isURLSafe reports whether s is a safe action identifier.
+// isURLSafe reports whether s can be used as a URL path segment. Resource and
+// action names both become route segments, so both must satisfy it.
 func isURLSafe(s string) bool {
 	if s == "" {
 		return false

@@ -26,3 +26,13 @@ func col(t *introspect.Table, name string) *introspect.Column {
 	}
 	return c
 }
+
+// twoColTable is a table with a composite (a, b) primary key, for exercising the
+// composite-key code paths.
+func twoColTable() *introspect.Table {
+	cols := []*introspect.Column{
+		{Name: "a", Position: 1, DataType: "int8", Category: introspect.CatNumeric},
+		{Name: "b", Position: 2, DataType: "text", Category: introspect.CatText},
+	}
+	return introspect.NewTable("public", "pairs", false, true, "", cols, cols, nil)
+}

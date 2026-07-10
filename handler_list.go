@@ -102,18 +102,85 @@ func (a *Admin) filterFields(res *Resource, lr *listRequest) []filterField {
 	return fields
 }
 
-// visibleActions returns the resource's actions the current principal may see,
-// honoring per-action allow predicates (O6). Central CanRunAction is still
-// enforced when an action is actually invoked.
+// Filter controls beyond listFilterInlineMax collapse into a "More filters"
+// popover; the first listFilterPinned stay inline. Small filter sets stay wholly
+// inline so a single-line bar never sprouts a needless disclosure.
+const (
+	listFilterInlineMax = 4
+	listFilterPinned    = 3
+)
+
+// filterViews builds the list's filter controls split into the always-visible
+// inline set and the overflow set (rendered in the "More filters" popover), plus
+// removable chips for the filters that currently carry a value.
+func (a *Admin) filterViews(r *http.Request, res *Resource, lr *listRequest) (inline, overflow []filterField, chips []filterChip) {
+	all := a.filterFields(res, lr)
+	inline, overflow = splitFilters(all)
+	for _, f := range all {
+		if chip, ok := a.filterChip(r, res, f); ok {
+			chips = append(chips, chip)
+		}
+	}
+	return inline, overflow, chips
+}
+
+// splitFilters partitions filter controls into the inline set and the overflow
+// set. Small sets stay wholly inline; larger ones keep listFilterPinned inline
+// and push the rest into the "More filters" popover.
+func splitFilters(all []filterField) (inline, overflow []filterField) {
+	if len(all) <= listFilterInlineMax {
+		return all, nil
+	}
+	return all[:listFilterPinned], all[listFilterPinned:]
+}
+
+// filterChip returns a removable chip for an active filter field, or ok=false
+// when the field carries no value. The chip's URL clears that filter's
+// parameter(s) and resets pagination.
+func (a *Admin) filterChip(r *http.Request, res *Resource, f filterField) (filterChip, bool) {
+	overrides := map[string]string{"page": ""}
+	var display string
+	if f.Kind == "daterange" {
+		if f.Value == "" && f.ValueTo == "" {
+			return filterChip{}, false
+		}
+		overrides[f.ParamKey] = ""
+		overrides[f.ParamKeyTo] = ""
+		display = dateRangeLabel(f.Value, f.ValueTo)
+	} else {
+		if f.Value == "" {
+			return filterChip{}, false
+		}
+		overrides[f.ParamKey] = ""
+		display = f.Value
+	}
+	return filterChip{Label: f.Label, Value: display, RemoveURL: a.listURL(r, res, overrides)}, true
+}
+
+// dateRangeLabel renders a daterange filter's active value for a chip, handling
+// open-ended ranges (only a lower or only an upper bound).
+func dateRangeLabel(from, to string) string {
+	switch {
+	case from != "" && to != "":
+		return from + " → " + to
+	case from != "":
+		return "≥ " + from
+	default:
+		return "≤ " + to
+	}
+}
+
+// visibleActions returns the actions the current principal may run. It consults
+// the same authorizer the guard consults, so the action bar never offers a button
+// that would 403 (O6).
 func (a *Admin) visibleActions(r *http.Request, res *Resource) []actionMeta {
 	if len(res.actionOrder) == 0 {
 		return nil
 	}
-	p := PrincipalFromContext(r.Context())
 	var out []actionMeta
 	for _, name := range res.actionOrder {
 		act := res.actions[name]
-		if act.allowed != nil && !act.allowed(p) {
+		if !a.can(r, CapRunAction, res.name, act.name) {
 			continue
 		}
 		out = append(out, actionMeta{Name: act.name, Label: act.label, Confirm: act.confirm})
@@ -164,15 +231,28 @@ func (a *Admin) resolveFKLabels(r *http.Request, res *Resource, display []*intro
 		if fk == nil {
 			continue
 		}
-		ref, err := resolveTable(st.catalog, a.cfg.schemas, fk.RefTable)
-		if err != nil {
+		ref, ok := resolveRef(st.catalog, fk)
+		if !ok {
+			continue
+		}
+		// A label is a read of another table, so it obeys that table's own rules:
+		// only a registered resource the principal may view is ever read, and only
+		// within that resource's row scope (O6).
+		refRes, ok := refResource(st, ref)
+		if !ok || !a.can(r, CapView, refRes.name, "") {
+			continue
+		}
+		refScope, serr := a.scopeFor(r, refRes, CapView, "")
+		if serr != nil {
+			LoggerFromContext(r.Context()).Error("pgdesk: FK label scope failed",
+				"resource", refRes.name, "error", serr)
 			continue
 		}
 		refPK, ok := ref.Column(fk.RefColumns[0])
 		if !ok {
 			continue
 		}
-		labelCol := labelColumn(ref, refPK)
+		labelCol := labelColumn(refRes, refPK)
 
 		// Collect distinct non-nil FK values across the page.
 		seen := map[any]bool{}
@@ -189,7 +269,7 @@ func (a *Admin) resolveFKLabels(r *http.Request, res *Resource, display []*intro
 			continue
 		}
 
-		sql, args := query.BuildFKLabels(ref, refPK, labelCol, values)
+		sql, args := query.BuildFKLabels(ref, refPK, labelCol, values, refScope)
 		ctx, cancel := a.queryContext(r)
 		rows, qerr := a.runQuery(ctx, "fk_labels", sql, args)
 		if qerr != nil {
@@ -199,7 +279,6 @@ func (a *Admin) resolveFKLabels(r *http.Request, res *Resource, display []*intro
 			continue
 		}
 		m := map[any]fkLabel{}
-		_, refRegistered := st.resource(fk.RefTable)
 		for rows.Next() {
 			vals, verr := rows.Values()
 			if verr != nil || len(vals) < 2 {
@@ -207,18 +286,44 @@ func (a *Admin) resolveFKLabels(r *http.Request, res *Resource, display []*intro
 			}
 			pkVal, lbl := vals[0], vals[1]
 			fl := fkLabel{label: render.FormatValue(lbl)}
-			if refRegistered {
-				if seg, err := query.EncodeKey([]*introspect.Column{refPK}, []any{pkVal}); err == nil {
-					fl.link = a.cfg.basePath + "/" + fk.RefTable + "/" + seg
-				}
+			if seg, err := query.EncodeKey([]*introspect.Column{refPK}, []any{pkVal}); err == nil {
+				fl.link = a.cfg.basePath + "/" + refRes.name + "/" + seg
 			}
 			m[pkVal] = fl
 		}
+		rowsErr := rows.Err()
 		rows.Close()
 		cancel()
+		if rowsErr != nil {
+			// A mid-stream failure leaves m partial; log it rather than silently
+			// presenting an incomplete label set as if some FKs simply had no match.
+			LoggerFromContext(r.Context()).Warn("pgdesk: FK label lookup incomplete",
+				"column", col.Name, "ref", fk.RefTable, "error", rowsErr)
+		}
 		out[col.Name] = m
 	}
 	return out
+}
+
+// resolveRef resolves the table a foreign key references, using the schema the
+// key itself records. Resolving by bare name across the configured schemas would
+// let a reference to billing.accounts read public.accounts and surface the wrong
+// table's data as labels. A reference outside the exposed schemas is not in the
+// catalog and simply does not resolve.
+func resolveRef(cat *introspect.Catalog, fk *introspect.ForeignKey) (*introspect.Table, bool) {
+	return cat.Table(fk.RefSchema, fk.RefTable)
+}
+
+// refResource returns the registered resource for a referenced table, if there is
+// one. Resources are keyed by bare name, so the resource found under a table's
+// name may be backed by a same-named table in another schema; linking to it would
+// send the operator to a different table than the one whose label was read.
+func refResource(st *adminState, ref *introspect.Table) (*Resource, bool) {
+	res, ok := st.resource(ref.Name)
+	if !ok || res.table.Schema != ref.Schema || res.table.Name != ref.Name {
+		return nil, false
+	}
+	return res, true
 }
 
 // singleColumnFK returns the single-column foreign key on t whose local column is
@@ -235,11 +340,17 @@ func singleColumnFK(t *introspect.Table, colName string) *introspect.ForeignKey 
 // labelColumn picks a human-friendly label column for a referenced table: the
 // first text column that is not the referenced key, falling back to the key
 // itself. A future release lets a resource declare this explicitly.
-func labelColumn(ref *introspect.Table, refPK *introspect.Column) *introspect.Column {
-	for _, c := range ref.Columns() {
-		if c.Name != refPK.Name && c.Category == introspect.CatText {
-			return c
+func labelColumn(ref *Resource, refPK *introspect.Column) *introspect.Column {
+	for _, c := range ref.table.Columns() {
+		if c.Name == refPK.Name || c.Category != introspect.CatText {
+			continue
 		}
+		// A column the referenced resource hides must not resurface as an FK label:
+		// hidden is how a host says "this text exists but must never be shown".
+		if fc := ref.fields[c.Name]; fc != nil && fc.hidden {
+			continue
+		}
+		return c
 	}
 	return refPK
 }

@@ -155,7 +155,7 @@ func TestBuildRowAndUpdateAreParameterized(t *testing.T) {
 	tbl := testTable()
 	cols := tbl.Columns()
 
-	sel, args, err := SelectRow(tbl, cols, tbl.PrimaryKey, []any{int64(42)}, VersionStrategy{})
+	sel, args, err := SelectRow(tbl, cols, tbl.PrimaryKey, []any{int64(42)}, VersionStrategy{}, nil)
 	if err != nil {
 		t.Fatalf("SelectRow: %v", err)
 	}
@@ -172,7 +172,7 @@ func TestBuildRowAndUpdateAreParameterized(t *testing.T) {
 	upd, uargs, err := UpdateRow(tbl,
 		[]*introspect.Column{col(tbl, "email")}, []any{"new@example.com"},
 		tbl.PrimaryKey, []any{int64(42)}, "12345", VersionStrategy{},
-		[]*introspect.Column{col(tbl, "id"), col(tbl, "email")})
+		[]*introspect.Column{col(tbl, "id"), col(tbl, "email")}, nil)
 	if err != nil {
 		t.Fatalf("UpdateRow: %v", err)
 	}
@@ -198,7 +198,7 @@ func TestUpdateRowWithVersionColumn(t *testing.T) {
 	verCol := &introspect.Column{Name: "version", Category: introspect.CatNumeric}
 	upd, _, err := UpdateRow(tbl,
 		[]*introspect.Column{col(tbl, "email")}, []any{"x"},
-		tbl.PrimaryKey, []any{int64(1)}, "7", VersionStrategy{Column: verCol}, nil)
+		tbl.PrimaryKey, []any{int64(1)}, "7", VersionStrategy{Column: verCol}, nil, nil)
 	if err != nil {
 		t.Fatalf("UpdateRow: %v", err)
 	}

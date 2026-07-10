@@ -50,7 +50,7 @@ func TestInsertRowMismatch(t *testing.T) {
 func TestDeleteRowParameterized(t *testing.T) {
 	tbl := testTable()
 	sql, args, err := DeleteRow(tbl, tbl.PrimaryKey, []any{int64(7)},
-		[]*introspect.Column{col(tbl, "id"), col(tbl, "email")})
+		[]*introspect.Column{col(tbl, "id"), col(tbl, "email")}, nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -67,7 +67,7 @@ func TestDeleteRowParameterized(t *testing.T) {
 
 func TestDeleteRowNoKey(t *testing.T) {
 	tbl := testTable()
-	if _, _, err := DeleteRow(tbl, nil, nil, nil); err != ErrNoKey {
+	if _, _, err := DeleteRow(tbl, nil, nil, nil, nil); err != ErrNoKey {
 		t.Errorf("want ErrNoKey, got %v", err)
 	}
 }

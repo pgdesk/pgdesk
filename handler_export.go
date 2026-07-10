@@ -19,7 +19,12 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "Unknown resource.")
 		return
 	}
-	if !a.guard(w, r, CapList, res.name, "", a.authorizerFor(res)) {
+	if !a.guard(w, r, CapList, res.name, "") {
+		return
+	}
+	scope, err := a.scopeFor(r, res, CapList, "")
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
 		return
 	}
 	lr, err := a.parseListRequest(r, res)
@@ -31,7 +36,7 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	display := visibleColumns(res.listDisplay, res)
 	sql, args, err := query.BuildList(res.table, query.ListParams{
 		Columns:  display,
-		Filters:  lr.filters,
+		Filters:  withScope(lr.filters, scope),
 		Search:   lr.search,
 		Sort:     lr.sortCol,
 		SortDesc: lr.sortDesc,

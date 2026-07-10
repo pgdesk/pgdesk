@@ -22,6 +22,15 @@ var (
 	// the catalog for the configured schemas.
 	ErrUnknownTable = errors.New("pgdesk: table not found in catalog")
 
+	// ErrAmbiguousTable is returned by New when a resource name matches a table in
+	// more than one configured schema. pgdesk refuses to guess which one was meant
+	// (D2); narrow WithSchemas, or exclude the name from auto-registration.
+	ErrAmbiguousTable = errors.New("pgdesk: table name is ambiguous across the configured schemas")
+
+	// ErrUnsafeName is returned by New when a resource name cannot be a URL path
+	// segment. The name is the resource's route, so it must be URL-safe.
+	ErrUnsafeName = errors.New("pgdesk: resource name must be url-safe (letters, digits, - or _)")
+
 	// ErrClosed is returned by methods called after Close.
 	ErrClosed = errors.New("pgdesk: admin is closed")
 )

@@ -14,6 +14,7 @@ type Operator string
 
 const (
 	OpEq      Operator = "eq"      // column = $1
+	OpNe      Operator = "ne"      // column <> $1  (NB: excludes NULL, like SQL)
 	OpILike   Operator = "ilike"   // column ILIKE $1  (text contains, case-insensitive)
 	OpIn      Operator = "in"      // column = ANY($1)
 	OpLt      Operator = "lt"      // column < $1
@@ -32,14 +33,14 @@ var ErrOperatorNotAllowed = errors.New("pgdesk/query: operator not allowed for c
 // bool → eq/isnull; enum → eq/in/isnull; with numeric/uuid/json filled in
 // conservatively.
 var allowedByCategory = map[introspect.TypeCategory][]Operator{
-	introspect.CatText:      {OpEq, OpILike, OpIn, OpIsNull},
-	introspect.CatNumeric:   {OpEq, OpLt, OpGt, OpBetween, OpIn, OpIsNull},
-	introspect.CatTimestamp: {OpEq, OpLt, OpGt, OpBetween, OpIsNull},
-	introspect.CatBool:      {OpEq, OpIsNull},
-	introspect.CatEnum:      {OpEq, OpIn, OpIsNull},
-	introspect.CatUUID:      {OpEq, OpIn, OpIsNull},
+	introspect.CatText:      {OpEq, OpNe, OpILike, OpIn, OpIsNull},
+	introspect.CatNumeric:   {OpEq, OpNe, OpLt, OpGt, OpBetween, OpIn, OpIsNull},
+	introspect.CatTimestamp: {OpEq, OpNe, OpLt, OpGt, OpBetween, OpIsNull},
+	introspect.CatBool:      {OpEq, OpNe, OpIsNull},
+	introspect.CatEnum:      {OpEq, OpNe, OpIn, OpIsNull},
+	introspect.CatUUID:      {OpEq, OpNe, OpIn, OpIsNull},
 	introspect.CatJSON:      {OpIsNull},
-	introspect.CatOther:     {OpEq, OpIsNull},
+	introspect.CatOther:     {OpEq, OpNe, OpIsNull},
 }
 
 // AllowedOperators returns the operators permitted for a type category, in a
@@ -66,7 +67,7 @@ func OperatorAllowed(col *introspect.Column, op Operator) bool {
 func ParseOperator(col *introspect.Column, token string) (Operator, error) {
 	op := Operator(token)
 	switch op {
-	case OpEq, OpILike, OpIn, OpLt, OpGt, OpBetween, OpIsNull:
+	case OpEq, OpNe, OpILike, OpIn, OpLt, OpGt, OpBetween, OpIsNull:
 		// recognized token; fall through to whitelist check
 	default:
 		return "", ErrOperatorNotAllowed

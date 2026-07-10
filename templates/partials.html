@@ -11,6 +11,7 @@
 </script>
 </head>
 <body>
+<a class="pg-skip" href="#pg-main">Skip to content</a>
 <header class="pg-header">
   <a class="pg-brand" href="{{ .BasePath }}/">
     <span class="pg-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="5" width="16" height="3.6" rx="1.4"/><rect x="4" y="10.4" width="16" height="3.2" rx="1.4" opacity=".85"/><rect x="4" y="15.6" width="10" height="3.2" rx="1.4" opacity=".6"/></svg></span>
@@ -32,7 +33,7 @@
       {{- end }}
     </ul>
   </nav>
-  <main class="pg-main">
+  <main class="pg-main" id="pg-main" tabindex="-1">
     {{- range .Flash }}
     <div class="pg-flash pg-flash-{{ .Level }}">{{ .Message }}</div>
     {{- end }}
@@ -44,4 +45,24 @@
 <script nonce="{{ nonce }}" src="{{ .BasePath }}/_static/pgdesk.js"></script>
 </body>
 </html>
+{{- end -}}
+
+{{- /* filterControl renders one list filter control from a filterField. Shared by
+       the inline bar and the "More filters" popover so the two never drift. */ -}}
+{{- define "filterControl" -}}
+<div class="pg-filter">
+  <label for="pg-f-{{ .ParamKey }}">{{ .Label }}</label>
+  {{- if or (eq .Kind "select") (eq .Kind "bool") }}
+  <select id="pg-f-{{ .ParamKey }}" name="{{ .ParamKey }}">
+    {{- range .Options }}
+    <option value="{{ . }}"{{ if eq . $.Value }} selected{{ end }}>{{ if eq . "" }}Any{{ else }}{{ . }}{{ end }}</option>
+    {{- end }}
+  </select>
+  {{- else if eq .Kind "daterange" }}
+  <input id="pg-f-{{ .ParamKey }}" type="text" name="{{ .ParamKey }}" value="{{ .Value }}" placeholder="From">
+  <input type="text" name="{{ .ParamKeyTo }}" value="{{ .ValueTo }}" placeholder="To" aria-label="{{ .Label }} to">
+  {{- else }}
+  <input id="pg-f-{{ .ParamKey }}" type="text" name="{{ .ParamKey }}" value="{{ .Value }}">
+  {{- end }}
+</div>
 {{- end -}}
