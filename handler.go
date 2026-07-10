@@ -30,16 +30,18 @@ func (a *Admin) buildHandler() http.Handler {
 		// assemble the routes.
 		mux := http.NewServeMux()
 		mux.HandleFunc("GET /{$}", a.handleIndex)
-		mux.HandleFunc("GET /{resource}", a.handleList)
+		// Every {resource} route is wrapped so the resource's own middleware
+		// (Resource.Use) runs for exactly that resource's requests and nothing else.
+		mux.HandleFunc("GET /{resource}", a.resourceScoped(a.handleList))
 		// Literal segments are more specific than {key}, so no ServeMux conflict.
-		mux.HandleFunc("GET /{resource}/new", a.handleCreateForm)
-		mux.HandleFunc("POST /{resource}/new", a.handleCreate)
-		mux.HandleFunc("GET /{resource}/export.csv", a.handleExport)
-		mux.HandleFunc("POST /{resource}/action", a.handleAction)
-		mux.HandleFunc("GET /{resource}/{key}", a.handleDetail)
-		mux.HandleFunc("GET /{resource}/{key}/edit", a.handleEditForm)
-		mux.HandleFunc("POST /{resource}/{key}/edit", a.handleUpdate)
-		mux.HandleFunc("POST /{resource}/{key}/delete", a.handleDelete)
+		mux.HandleFunc("GET /{resource}/new", a.resourceScoped(a.handleCreateForm))
+		mux.HandleFunc("POST /{resource}/new", a.resourceScoped(a.handleCreate))
+		mux.HandleFunc("GET /{resource}/export.csv", a.resourceScoped(a.handleExport))
+		mux.HandleFunc("POST /{resource}/action", a.resourceScoped(a.handleAction))
+		mux.HandleFunc("GET /{resource}/{key}", a.resourceScoped(a.handleDetail))
+		mux.HandleFunc("GET /{resource}/{key}/edit", a.resourceScoped(a.handleEditForm))
+		mux.HandleFunc("POST /{resource}/{key}/edit", a.resourceScoped(a.handleUpdate))
+		mux.HandleFunc("POST /{resource}/{key}/delete", a.resourceScoped(a.handleDelete))
 
 		// Static assets are dispatched by literal prefix BEFORE the wildcard mux,
 		// so they never collide with the {resource} patterns (which a subtree
@@ -61,6 +63,25 @@ func (a *Admin) buildHandler() http.Handler {
 		a.handler = h
 	})
 	return a.handler
+}
+
+// resourceScoped wraps a resource handler so that, when the request's resource
+// declares middleware via Resource.Use, that middleware wraps only this
+// resource's routes (and no other resource's). The resource is resolved from the
+// per-request state snapshot that baseMiddleware installed before routing, so a
+// mid-request Reload cannot shift which chain applies. Resources without
+// middleware pay nothing beyond a map lookup.
+func (a *Admin) resourceScoped(h http.HandlerFunc) http.HandlerFunc {
+	return func(w http.ResponseWriter, r *http.Request) {
+		st := stateFromContext(r.Context())
+		if st != nil {
+			if res, ok := st.resource(r.PathValue("resource")); ok && len(res.middleware) > 0 {
+				chain(h, res.middleware...).ServeHTTP(w, r)
+				return
+			}
+		}
+		h(w, r)
+	}
 }
 
 // recoverMiddleware converts any panic that escapes a handler into a logged,

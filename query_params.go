@@ -47,7 +47,7 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 		cols := textColumns(res.searchFields)
 		if len(cols) > 0 {
 			lr.q = term
-			lr.search = &query.SearchSpec{Cols: cols, Term: "%" + term + "%"}
+			lr.search = &query.SearchSpec{Cols: cols, Term: "%" + escapeLike(term) + "%"}
 		}
 	}
 
@@ -142,7 +142,7 @@ func buildFilter(col *introspect.Column, opToken, raw string) (query.Filter, err
 		}
 		return query.Filter{Col: col, Op: op, Values: []any{b}}, nil
 	case query.OpILike:
-		return query.Filter{Col: col, Op: op, Values: []any{"%" + raw + "%"}}, nil
+		return query.Filter{Col: col, Op: op, Values: []any{"%" + escapeLike(raw) + "%"}}, nil
 	default: // eq, lt, gt
 		v, err := query.ParseScalar(col, raw)
 		if err != nil {
@@ -150,6 +150,25 @@ func buildFilter(col *introspect.Column, opToken, raw string) (query.Filter, err
 		}
 		return query.Filter{Col: col, Op: op, Values: []any{v}}, nil
 	}
+}
+
+// likeEscaper neutralizes the LIKE/ILIKE metacharacters so a search or text
+// filter term matches literally. Backslash is escaped FIRST (it is the default
+// LIKE escape character), then % and _, which the emitted "col ILIKE $n" treats
+// as wildcards. This is a semantic fix, not injection prevention -- the value
+// still binds as $N -- but without it "50%" matches unintended rows and a
+// trailing backslash raises Postgres 22025. The default backslash escape is
+// active, so no explicit ESCAPE clause is needed.
+var likeEscaper = strings.NewReplacer(
+	`\`, `\\`,
+	`%`, `\%`,
+	`_`, `\_`,
+)
+
+// escapeLike escapes LIKE metacharacters in a term before it is wrapped with
+// %...% for an ILIKE match.
+func escapeLike(s string) string {
+	return likeEscaper.Replace(s)
 }
 
 // splitFilterKey splits "col__op" into (col, op), defaulting op to "eq". It uses

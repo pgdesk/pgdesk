@@ -45,7 +45,7 @@ func (a *Admin) clampPageSize(n int) int {
 }
 
 func (a *Admin) resourceMeta(res *Resource) resourceMeta {
-	return resourceMeta{Name: res.name, Label: res.Label, LabelPlural: res.LabelPlural}
+	return resourceMeta{Name: res.name, Label: res.Label, LabelPlural: res.LabelPlural, Description: res.Description}
 }
 
 // fieldLabel returns the display label for a column: the operator override if
@@ -220,8 +220,14 @@ func clientIP(r *http.Request) string {
 }
 
 // FormatVersion renders an optimistic-concurrency version token as a string for
-// the hidden form field. xmin is selected as ::text, so it arrives as a string.
+// the hidden form field. xmin and an explicit version column are selected as
+// ::text, so they arrive as a string. A NoVersion resource selects NULL, which
+// decodes to nil and must render as the empty token -- never the "<nil>" that
+// fmt.Sprint would produce and leak into the form.
 func FormatVersion(v any) string {
+	if v == nil {
+		return ""
+	}
 	if s, ok := v.(string); ok {
 		return s
 	}

@@ -1,6 +1,7 @@
 package pgdesk
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +43,7 @@ type Resource struct {
 	actions     map[string]*action
 	actionOrder []string
 
-	err error // first configuration error; checked by New()
+	err error // accumulated configuration errors (errors.Join); checked by New()
 }
 
 func newResource(name string, t *introspect.Table, defaultPageSize int) *Resource {
@@ -71,8 +72,8 @@ func (r *Resource) fieldFor(name string) *fieldConfig {
 	return fc
 }
 
-// resolve turns column names into catalog columns, recording the first failure
-// on the resource so New() can reject the whole construction (D2).
+// resolve turns column names into catalog columns, recording every failure on
+// the resource so New() reports all configuration mistakes at once (D2).
 func (r *Resource) resolve(names ...string) ([]*introspect.Column, bool) {
 	cols := make([]*introspect.Column, 0, len(names))
 	for _, n := range names {
@@ -86,10 +87,12 @@ func (r *Resource) resolve(names ...string) ([]*introspect.Column, bool) {
 	return cols, true
 }
 
+// addErr accumulates a configuration error. All errors are joined so a resource
+// with several bad column names surfaces them together, rather than one per
+// rebuild. errors.Is/As traverse the join, so callers matching a sentinel still
+// work.
 func (r *Resource) addErr(err error) {
-	if r.err == nil {
-		r.err = err
-	}
+	r.err = errors.Join(r.err, err)
 }
 
 // ListDisplay sets the columns shown in the list view, in order. Unknown columns
@@ -102,6 +105,11 @@ func (r *Resource) ListDisplay(cols ...string) {
 
 // SearchFields sets the columns matched by the search box (text columns). Unknown
 // columns fail construction.
+//
+// Search uses a case-insensitive substring match (ILIKE '%term%'), whose leading
+// wildcard cannot use a plain B-tree index, so on a large table it is a
+// sequential scan bounded by the query timeout. For search-heavy large tables,
+// add a trigram GIN index (pg_trgm) on the searched columns.
 func (r *Resource) SearchFields(cols ...string) {
 	if resolved, ok := r.resolve(cols...); ok {
 		r.searchFields = resolved
@@ -154,8 +162,32 @@ func (r *Resource) Redact(cols ...string) {
 	}
 }
 
+// FieldLabel overrides the display label for a single column in list and form
+// views. Without it a column falls back to a humanized version of its name.
+// Unknown columns fail construction.
+func (r *Resource) FieldLabel(col, label string) {
+	if _, ok := r.resolve(col); ok {
+		r.fieldFor(col).label = label
+	}
+}
+
+// Widget overrides the form input rendered for a column, instead of the default
+// chosen from the column's type. Use it to force, for example, a Textarea on a
+// long text column or the JSON editor on a jsonb column. Unknown columns fail
+// construction.
+func (r *Resource) Widget(col string, w Widget) {
+	if _, ok := r.resolve(col); ok {
+		r.fieldFor(col).widget = w
+	}
+}
+
 // DefaultSort sets the default ordering. A leading '-' means descending
 // (e.g. "-created_at"). The column must exist.
+//
+// The list uses OFFSET pagination with a primary-key tiebreaker for stable
+// ordering. OFFSET reads and discards the skipped rows, so very deep pages on a
+// large table grow linearly more expensive; the admin is intended for browsing
+// and filtering, not for paging tens of thousands of rows deep.
 func (r *Resource) DefaultSort(spec string) {
 	desc := false
 	name := spec
@@ -185,17 +217,20 @@ func (r *Resource) Key(cols ...string) {
 	}
 }
 
-// WithVersionColumn uses an explicit version/updated_at column for optimistic
+// VersionColumn uses an explicit version/updated_at column for optimistic
 // concurrency instead of xmin (O1). The column must exist.
-func (r *Resource) WithVersionColumn(col string) {
+//
+// It is a mutating setter, not an option constructor; the With* prefix in this
+// package is reserved for functions that return an Option value.
+func (r *Resource) VersionColumn(col string) {
 	if resolved, ok := r.resolve(col); ok {
 		r.versionCol = resolved[0]
 	}
 }
 
-// WithConstraintMessage maps a PostgreSQL constraint name to a friendly message
+// ConstraintMessage maps a PostgreSQL constraint name to a friendly message
 // shown when that constraint is violated (D7).
-func (r *Resource) WithConstraintMessage(name, msg string) {
+func (r *Resource) ConstraintMessage(name, msg string) {
 	r.constraintMsgs[name] = msg
 }
 
@@ -252,17 +287,49 @@ func isURLSafe(s string) bool {
 // hasKey reports whether detail/edit/delete routes should exist.
 func (r *Resource) hasKey() bool { return len(r.keyCols) > 0 }
 
-// writable reports whether create/update/delete are possible: the relation must
-// be updatable and the resource must have a key.
-func (r *Resource) writable() bool { return r.table.Updatable && r.hasKey() }
-
-// versionStrategy returns the O1 concurrency strategy for this resource.
-func (r *Resource) versionStrategy() query.VersionStrategy {
-	return query.VersionStrategy{Column: r.versionCol}
+// writable reports whether ANY mutation (create, update, or delete) is possible:
+// the resource must have a key and the relation must support at least one write
+// operation. It gates the CSRF-key requirement and the general edit affordance;
+// the specific create/update/delete gates below decide each operation precisely
+// so a view that supports only some of them exposes exactly those (D6).
+func (r *Resource) writable() bool {
+	return r.hasKey() && (r.table.Insertable || r.table.Updatable || r.table.Deletable)
 }
 
-// editableColumns returns the columns an operator may submit on update: visible,
-// not readonly, and not generated.
+// canCreate reports whether INSERT is possible for this resource.
+func (r *Resource) canCreate() bool { return r.hasKey() && r.table.Insertable }
+
+// canUpdate reports whether UPDATE is possible for this resource: it has a key,
+// the relation is updatable, and there is at least one non-key column to write
+// (a table whose only columns are its key has nothing an edit could change).
+func (r *Resource) canUpdate() bool {
+	return r.hasKey() && r.table.Updatable && len(r.updatableColumns()) > 0
+}
+
+// canDelete reports whether DELETE is possible for this resource.
+func (r *Resource) canDelete() bool { return r.hasKey() && r.table.Deletable }
+
+// versionStrategy returns the O1 concurrency strategy for this resource. An
+// explicit version column wins; otherwise xmin is used on physical relations
+// (ordinary/partitioned tables, matviews) and versioning is disabled on views and
+// foreign tables, which have no selectable xmin (using it there would 500).
+func (r *Resource) versionStrategy() query.VersionStrategy {
+	switch {
+	case r.versionCol != nil:
+		return query.VersionStrategy{Column: r.versionCol}
+	case r.table.HasXmin:
+		return query.VersionStrategy{}
+	default:
+		return query.VersionStrategy{NoVersion: true}
+	}
+}
+
+// editableColumns returns the columns an operator may submit on CREATE: visible,
+// not readonly, not generated, and not a GENERATED ALWAYS AS IDENTITY column.
+// Identity-always columns are excluded because PostgreSQL rejects writing any
+// value but DEFAULT to them (SQLSTATE 428C9); including one would make every
+// insert fail. GENERATED BY DEFAULT AS IDENTITY columns are writable and remain
+// editable, as are natural key columns (a natural key must be settable on insert).
 func (r *Resource) editableColumns() []*introspect.Column {
 	var out []*introspect.Column
 	for _, c := range r.table.Columns() {
@@ -270,7 +337,29 @@ func (r *Resource) editableColumns() []*introspect.Column {
 		if fc != nil && (fc.readonly || fc.hidden) {
 			continue
 		}
-		if c.IsGenerated {
+		if c.IsGenerated || c.IsIdentityAlways {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
+}
+
+// updatableColumns returns the columns an operator may submit on UPDATE: the
+// creatable set minus the resource's key columns. A primary key is never rewritten
+// on edit -- it identifies the row in the WHERE clause, and writing it back is at
+// best a no-op and at worst an error (an identity or serial surrogate key, or a
+// view column mapping onto one, rejects the write with SQLSTATE 428C9). Excluding
+// the key from the SET list is what makes identity-PK tables and keyed updatable
+// views editable by default.
+func (r *Resource) updatableColumns() []*introspect.Column {
+	key := make(map[string]bool, len(r.keyCols))
+	for _, c := range r.keyCols {
+		key[c.Name] = true
+	}
+	var out []*introspect.Column
+	for _, c := range r.editableColumns() {
+		if key[c.Name] {
 			continue
 		}
 		out = append(out, c)

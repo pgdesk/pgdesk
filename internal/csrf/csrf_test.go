@@ -4,7 +4,19 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 )
+
+// withFrozenTime overrides the package clock for the duration of the test and
+// restores it afterwards. It returns a setter so a test can advance time.
+func withFrozenTime(t *testing.T, at time.Time) func(time.Time) {
+	t.Helper()
+	prev := timeNow
+	cur := at
+	timeNow = func() time.Time { return cur }
+	t.Cleanup(func() { timeNow = prev })
+	return func(next time.Time) { cur = next }
+}
 
 func mustSigner(t *testing.T, primary []byte, retired ...[]byte) *Signer {
 	t.Helper()
@@ -98,6 +110,96 @@ func TestKeyRotationVerifiesRetiredTokens(t *testing.T) {
 	newTok, _ := rotated.Issue()
 	if err := fresh.Verify(newTok); err != nil {
 		t.Fatalf("fresh signer should verify new-primary token: %v", err)
+	}
+}
+
+func TestVerifyEnforcesTTL(t *testing.T) {
+	base := time.Unix(1_700_000_000, 0)
+
+	cases := []struct {
+		name    string
+		issueAt time.Time
+		checkAt time.Time
+		want    error // nil means Verify should succeed
+	}{
+		{
+			name:    "fresh token verifies",
+			issueAt: base,
+			checkAt: base,
+			want:    nil,
+		},
+		{
+			name:    "within TTL verifies",
+			issueAt: base,
+			checkAt: base.Add(TTL - time.Minute),
+			want:    nil,
+		},
+		{
+			name:    "at TTL boundary still verifies",
+			issueAt: base,
+			checkAt: base.Add(TTL),
+			want:    nil,
+		},
+		{
+			name:    "past TTL expires",
+			issueAt: base,
+			checkAt: base.Add(TTL + time.Second),
+			want:    ErrExpired,
+		},
+		{
+			name:    "well past TTL expires",
+			issueAt: base,
+			checkAt: base.Add(48 * time.Hour),
+			want:    ErrExpired,
+		},
+		{
+			name:    "future within skew verifies",
+			issueAt: base,
+			checkAt: base.Add(-clockSkew),
+			want:    nil,
+		},
+		{
+			name:    "future beyond skew rejected",
+			issueAt: base,
+			checkAt: base.Add(-clockSkew - time.Minute),
+			want:    ErrFutureDated,
+		},
+	}
+
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			s := mustSigner(t, []byte("ttl-secret-key"))
+			setNow := withFrozenTime(t, tc.issueAt)
+			tok, err := s.Issue()
+			if err != nil {
+				t.Fatalf("Issue: %v", err)
+			}
+			setNow(tc.checkAt)
+			err = s.Verify(tok)
+			if tc.want == nil {
+				if err != nil {
+					t.Fatalf("Verify: got %v, want nil", err)
+				}
+				return
+			}
+			if !errors.Is(err, tc.want) {
+				t.Fatalf("Verify: got %v, want %v", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestVerifyRejectsPreTTLFormat guards against panics on tokens minted in the
+// old format (a bare 32-byte nonce payload with no timestamp prefix).
+func TestVerifyRejectsPreTTLFormat(t *testing.T) {
+	key := []byte("legacy-key")
+	s := mustSigner(t, key)
+
+	nonce := make([]byte, nonceLen) // all-zero nonce is fine for the shape test
+	oldTok := enc.EncodeToString(nonce) + "." + enc.EncodeToString(sign(key, nonce))
+
+	if err := s.Verify(oldTok); !errors.Is(err, ErrMalformed) {
+		t.Fatalf("pre-TTL token: got %v, want ErrMalformed", err)
 	}
 }
 

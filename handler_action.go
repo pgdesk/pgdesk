@@ -21,14 +21,14 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "Unknown resource.")
 		return
 	}
+	// The form must be parsed first because the action name lives in the body;
+	// only then can authorization (which is per-action) be evaluated. The check
+	// order thereafter matches every other mutating handler: authorize, then
+	// verify CSRF, then execute -- authorization is always the first gate once the
+	// operation is known, and no query runs before both checks pass.
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.maxBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		a.renderError(w, r, http.StatusBadRequest, "The submitted form was invalid or too large.")
-		return
-	}
-	if err := a.verifyCSRF(r); err != nil {
-		LoggerFromContext(r.Context()).Warn("pgdesk: CSRF verification failed", "resource", res.name, "error", err)
-		a.renderError(w, r, http.StatusForbidden, "Your session could not be verified. Please reload and try again.")
 		return
 	}
 
@@ -43,6 +43,11 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 	scope, err := a.scopeFor(r, res, CapRunAction, act.name)
 	if err != nil {
 		a.scopeDenied(w, r, res, err)
+		return
+	}
+	if err := a.verifyCSRF(r); err != nil {
+		LoggerFromContext(r.Context()).Warn("pgdesk: CSRF verification failed", "resource", res.name, "error", err)
+		a.renderError(w, r, http.StatusForbidden, "Your session could not be verified. Please reload and try again.")
 		return
 	}
 

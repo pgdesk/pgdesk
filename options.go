@@ -13,11 +13,12 @@ type Option func(*config)
 // config is the resolved, unexported configuration. Defaults are set by
 // defaultConfig and overridden by Options.
 type config struct {
-	title        string
-	basePath     string
-	schemas      []string
-	loginURL     string
-	queryTimeout time.Duration
+	title         string
+	basePath      string
+	schemas       []string
+	loginURL      string
+	queryTimeout  time.Duration
+	exportTimeout time.Duration
 
 	resources []resourceReg // resources declared via WithResource, applied by New
 
@@ -47,6 +48,7 @@ func defaultConfig() *config {
 		schemas:         []string{"public"},
 		loginURL:        "",
 		queryTimeout:    15 * time.Second,
+		exportTimeout:   5 * time.Minute,
 		logger:          slog.New(slog.DiscardHandler),
 		metrics:         nopMetrics{},
 		authorizer:      nil, // nil -> fail-closed (all capabilities denied) until set
@@ -140,6 +142,18 @@ func WithQueryTimeout(d time.Duration) Option {
 	return func(c *config) {
 		if d > 0 {
 			c.queryTimeout = d
+		}
+	}
+}
+
+// WithExportTimeout bounds a CSV export's streaming query with its own, longer
+// deadline (default 5m). An export streams up to WithMaxExportRows rows and is a
+// different workload from an interactive query, so it does not share the shorter
+// WithQueryTimeout; a value below the query timeout is raised to it at use.
+func WithExportTimeout(d time.Duration) Option {
+	return func(c *config) {
+		if d > 0 {
+			c.exportTimeout = d
 		}
 	}
 }

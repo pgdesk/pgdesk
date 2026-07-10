@@ -29,6 +29,7 @@ type resourceMeta struct {
 	Name        string
 	Label       string
 	LabelPlural string
+	Description string
 }
 
 type resourceNav struct {

@@ -19,6 +19,41 @@ func TestDecodeSingleNumericKey(t *testing.T) {
 	}
 }
 
+// TestDecodeHighPrecisionNumeric proves issue #13a is fixed: a numeric value
+// wider than int64 (and with a fractional part) round-trips as the EXACT
+// original string, never coerced to float64 -- so a filter on a
+// numeric(38,10) column does not silently miss rows to precision loss. pgx
+// binds a Go string to a numeric column and PG casts it at full precision.
+func TestDecodeHighPrecisionNumeric(t *testing.T) {
+	numeric := []*introspect.Column{{Name: "amount", DataType: "numeric", Category: introspect.CatNumeric}}
+	for _, raw := range []string{
+		"12345678901234567890.12", // > int64 with decimals
+		"99999999999999999999",    // > int64, integral
+		"-0.00000000001",          // tiny fractional, would round to 0 as float64
+		"1.5e10",                  // exponent form
+	} {
+		vals, err := DecodeKey(numeric, raw)
+		if err != nil {
+			t.Fatalf("DecodeKey(numeric, %q): %v", raw, err)
+		}
+		s, ok := vals[0].(string)
+		if !ok {
+			t.Fatalf("numeric %q bound as %T, want the exact string (no float64 downgrade)", raw, vals[0])
+		}
+		if s != raw {
+			t.Fatalf("numeric %q bound as %q, want the exact input string", raw, s)
+		}
+	}
+	// A plain int64-sized integer still takes the typed fast-path.
+	vals, err := DecodeKey(numeric, "42")
+	if err != nil {
+		t.Fatalf("DecodeKey(numeric, 42): %v", err)
+	}
+	if vals[0] != int64(42) {
+		t.Fatalf("small integer key = %#v, want int64(42)", vals[0])
+	}
+}
+
 // TestDecodeKeyFailsClosed is the D6 assertion: a non-numeric segment for a
 // numeric key is a 400 (ErrBadKey), never coerced to a string and never a 500.
 func TestDecodeKeyFailsClosed(t *testing.T) {
@@ -115,8 +150,10 @@ func FuzzDecodeKey(f *testing.F) {
 			t.Fatalf("accepted %q but returned %d values", seg, len(vals))
 		}
 		switch vals[0].(type) {
-		case int64, float64:
-			// typed numeric value -- acceptable
+		case int64, string:
+			// A plain int64 for integer keys, or the validated literal string
+			// for wide/decimal numerics (bound to PG at full precision). Never
+			// a float64 -- that would silently lose precision.
 		default:
 			t.Fatalf("numeric key %q decoded to non-numeric %T", seg, vals[0])
 		}

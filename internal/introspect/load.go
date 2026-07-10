@@ -57,6 +57,7 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 	for _, key := range relOrder {
 		r := rels[key]
 		t := NewTable(r.schema, r.name, r.isView, r.updatable, r.comment, r.cols, r.pk, r.fks)
+		t.setCaps(r.insertable, r.updatable, r.deletable, r.hasXmin)
 		t.setUniques(r.uniques)
 		tables = append(tables, t)
 	}
@@ -69,17 +70,20 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 // relBuild is mutable scratch state used only during a single Load. It becomes an
 // immutable *Table at the end.
 type relBuild struct {
-	oid       uint32
-	schema    string
-	name      string
-	isView    bool
-	updatable bool
-	comment   string
-	cols      []*Column
-	byAttnum  map[int16]*Column
-	pk        []*Column
-	fks       []*ForeignKey
-	uniques   []*UniqueConstraint
+	oid        uint32
+	schema     string
+	name       string
+	isView     bool
+	insertable bool
+	updatable  bool
+	deletable  bool
+	hasXmin    bool
+	comment    string
+	cols       []*Column
+	byAttnum   map[int16]*Column
+	pk         []*Column
+	fks        []*ForeignKey
+	uniques    []*UniqueConstraint
 }
 
 func relKey(schema, name string) string { return schema + "." + name }
@@ -110,18 +114,24 @@ func loadEnums(ctx context.Context, tx pgx.Tx, schemas []string) (map[uint32][]s
 	return out, rows.Err()
 }
 
-// loadRelations reads tables/views and their updatability + comments.
+// loadRelations reads tables/views and their per-operation write capabilities +
+// comments. Capabilities come from pg_relation_is_updatable(oid, true), which is
+// authoritative for auto-updatable AND trigger-updatable (INSTEAD OF) views alike
+// -- unlike information_schema.views.is_updatable, which reports NO for a view
+// made writable purely by triggers and conflates INSERT with UPDATE/DELETE.
+//
+// The returned bitmask uses event bits UPDATE=4, INSERT=8, DELETE=16, so each
+// operation is tracked independently. hasXmin marks physical relations
+// (ordinary/partitioned tables and materialized views) whose xmin system column
+// is selectable; views and foreign tables have none (O1).
 func loadRelations(ctx context.Context, tx pgx.Tx, schemas []string) (map[string]*relBuild, []string, error) {
 	const q = `
 		SELECT c.oid, n.nspname, c.relname, c.relkind,
 		       COALESCE(obj_description(c.oid, 'pg_class'), '') AS comment,
-		       CASE
-		         WHEN c.relkind IN ('r','p') THEN true
-		         WHEN c.relkind = 'v' THEN COALESCE(
-		           (SELECT v.is_updatable = 'YES' FROM information_schema.views v
-		            WHERE v.table_schema = n.nspname AND v.table_name = c.relname), false)
-		         ELSE false
-		       END AS updatable
+		       (pg_relation_is_updatable(c.oid, true) & 8)  = 8  AS insertable,
+		       (pg_relation_is_updatable(c.oid, true) & 4)  = 4  AS updatable,
+		       (pg_relation_is_updatable(c.oid, true) & 16) = 16 AS deletable,
+		       c.relkind IN ('r','p','m') AS has_xmin
 		FROM pg_class c
 		JOIN pg_namespace n ON n.oid = c.relnamespace
 		WHERE n.nspname = ANY($1)
@@ -136,25 +146,30 @@ func loadRelations(ctx context.Context, tx pgx.Tx, schemas []string) (map[string
 	var order []string
 	for rows.Next() {
 		var (
-			oid     uint32
-			schema  string
-			name    string
-			relkind string
-			comment string
-			updat   bool
+			oid                              uint32
+			schema                           string
+			name                             string
+			relkind                          string
+			comment                          string
+			insertable, updatable, deletable bool
+			hasXmin                          bool
 		)
-		if err := rows.Scan(&oid, &schema, &name, &relkind, &comment, &updat); err != nil {
+		if err := rows.Scan(&oid, &schema, &name, &relkind, &comment,
+			&insertable, &updatable, &deletable, &hasXmin); err != nil {
 			return nil, nil, fmt.Errorf("pgdesk/introspect: scan relation: %w", err)
 		}
 		key := relKey(schema, name)
 		rels[key] = &relBuild{
-			oid:       oid,
-			schema:    schema,
-			name:      name,
-			isView:    relkind == "v" || relkind == "m",
-			updatable: updat,
-			comment:   comment,
-			byAttnum:  map[int16]*Column{},
+			oid:        oid,
+			schema:     schema,
+			name:       name,
+			isView:     relkind == "v" || relkind == "m",
+			insertable: insertable,
+			updatable:  updatable,
+			deletable:  deletable,
+			hasXmin:    hasXmin,
+			comment:    comment,
+			byAttnum:   map[int16]*Column{},
 		}
 		order = append(order, key)
 	}
@@ -176,6 +191,7 @@ func loadColumns(ctx context.Context, tx pgx.Tx, schemas []string, rels map[stri
 		       a.attnotnull,
 		       a.atthasdef,
 		       (a.attgenerated <> '') AS is_generated,
+		       (a.attidentity = 'a') AS is_identity_always,
 		       COALESCE(col_description(c.oid, a.attnum), '') AS comment
 		FROM pg_attribute a
 		JOIN pg_class c ON c.oid = a.attrelid
@@ -194,17 +210,17 @@ func loadColumns(ctx context.Context, tx pgx.Tx, schemas []string, rels map[stri
 	defer rows.Close()
 	for rows.Next() {
 		var (
-			schema, relname            string
-			attname                    string
-			attnum                     int16
-			atttypid                   uint32
-			typname                    string
-			typcategory, typtype       string
-			notnull, hasdef, generated bool
-			comment                    string
+			schema, relname                        string
+			attname                                string
+			attnum                                 int16
+			atttypid                               uint32
+			typname                                string
+			typcategory, typtype                   string
+			notnull, hasdef, generated, identityAl bool
+			comment                                string
 		)
 		if err := rows.Scan(&schema, &relname, &attname, &attnum, &atttypid,
-			&typname, &typcategory, &typtype, &notnull, &hasdef, &generated, &comment); err != nil {
+			&typname, &typcategory, &typtype, &notnull, &hasdef, &generated, &identityAl, &comment); err != nil {
 			return fmt.Errorf("pgdesk/introspect: scan column: %w", err)
 		}
 		r, ok := rels[relKey(schema, relname)]
@@ -214,14 +230,15 @@ func loadColumns(ctx context.Context, tx pgx.Tx, schemas []string, rels map[stri
 		isEnum := typtype == "e"
 		cat := categoryFor(typname, byteOf(typcategory), isEnum)
 		col := &Column{
-			Name:        attname,
-			Position:    int(attnum),
-			DataType:    typname,
-			Category:    cat,
-			Nullable:    !notnull,
-			HasDefault:  hasdef,
-			IsGenerated: generated,
-			Comment:     comment,
+			Name:             attname,
+			Position:         int(attnum),
+			DataType:         typname,
+			Category:         cat,
+			Nullable:         !notnull,
+			HasDefault:       hasdef,
+			IsGenerated:      generated,
+			IsIdentityAlways: identityAl,
+			Comment:          comment,
 		}
 		if isEnum {
 			col.EnumLabels = enums[atttypid]

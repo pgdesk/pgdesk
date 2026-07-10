@@ -7,6 +7,21 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
+func TestBuildListPKTiebreakerWithoutSort(t *testing.T) {
+	tbl := testTable()
+	sql, _, err := BuildList(tbl, ListParams{
+		Columns: []*introspect.Column{col(tbl, "id"), col(tbl, "email")},
+		Limit:   10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	// With no explicit sort, the PK alone provides the deterministic order.
+	if !strings.Contains(sql, `ORDER BY "id" ASC`) {
+		t.Errorf("expected PK ordering without a sort column: %s", sql)
+	}
+}
+
 func TestBuildListParameterized(t *testing.T) {
 	tbl := testTable()
 	cols := []*introspect.Column{col(tbl, "id"), col(tbl, "email")}
@@ -26,6 +41,11 @@ func TestBuildListParameterized(t *testing.T) {
 	}
 	if !strings.Contains(sql, `ORDER BY "created_at" DESC`) {
 		t.Errorf("missing sort: %s", sql)
+	}
+	// A primary-key tiebreaker must follow the chosen sort so pagination over a
+	// non-unique/nullable sort column is stable.
+	if !strings.Contains(sql, `ORDER BY "created_at" DESC, "id" ASC`) {
+		t.Errorf("missing PK tiebreaker: %s", sql)
 	}
 	if !strings.Contains(sql, "LIMIT $1 OFFSET $2") {
 		t.Errorf("limit/offset not parameterized: %s", sql)

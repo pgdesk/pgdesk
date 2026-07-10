@@ -1,7 +1,12 @@
 {{- define "list" -}}
 {{ template "head" .Base }}
 <div class="pg-list-header">
-  <h1>{{ .Resource.LabelPlural }}</h1>
+  <div>
+    <h1>{{ .Resource.LabelPlural }}</h1>
+    {{- if .Resource.Description }}
+    <p class="pg-resource-description">{{ .Resource.Description }}</p>
+    {{- end }}
+  </div>
   <div class="pg-list-header-actions">
     <a class="pg-btn" href="{{ .ExportURL }}">Export CSV</a>
     {{- if .CanCreate }}

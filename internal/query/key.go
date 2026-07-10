@@ -134,13 +134,19 @@ func ParseScalar(col *introspect.Column, raw string) (any, error) {
 func parseScalar(col *introspect.Column, raw string) (any, error) {
 	switch col.Category {
 	case introspect.CatNumeric:
+		// A plain int64 fast-path keeps small integer keys as a typed integer
+		// without precision loss. For anything wider or fractional (numeric,
+		// money, decimal), do NOT downgrade to float64 -- that silently drops
+		// precision so filters miss rows. Instead validate the literal and bind
+		// the ORIGINAL STRING; pgx binds a Go string to a numeric column and PG
+		// casts text->numeric with full precision (mirroring the write path).
 		if n, err := strconv.ParseInt(raw, 10, 64); err == nil {
 			return n, nil
 		}
-		if f, err := strconv.ParseFloat(raw, 64); err == nil {
-			return f, nil
+		if !isNumericLiteral(raw) {
+			return nil, fmt.Errorf("%w: %q is not numeric", errParse, raw)
 		}
-		return nil, fmt.Errorf("%w: %q is not numeric", errParse, raw)
+		return raw, nil
 	case introspect.CatBool:
 		b, err := strconv.ParseBool(raw)
 		if err != nil {
@@ -173,6 +179,52 @@ func parseScalar(col *introspect.Column, raw string) (any, error) {
 		// CatJSON and anything else are not scalar-comparable in pgdesk.
 		return nil, fmt.Errorf("%w: %s is not a supported scalar type", errParse, col.DataType)
 	}
+}
+
+// isNumericLiteral reports whether s is a well-formed decimal numeric literal:
+// an optional sign, digits with at most one decimal point, and an optional
+// exponent. It is deliberately stricter than strconv.ParseFloat (no hex floats,
+// no underscores, no Inf/NaN) so a malformed value fails closed with a clear
+// error here rather than reaching SQL, while a valid one is bound verbatim to
+// Postgres for full numeric precision.
+func isNumericLiteral(s string) bool {
+	if s == "" {
+		return false
+	}
+	i := 0
+	if s[i] == '+' || s[i] == '-' {
+		i++
+	}
+	mantissaDigits := 0
+	for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+		mantissaDigits++
+		i++
+	}
+	if i < len(s) && s[i] == '.' {
+		i++
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			mantissaDigits++
+			i++
+		}
+	}
+	if mantissaDigits == 0 {
+		return false
+	}
+	if i < len(s) && (s[i] == 'e' || s[i] == 'E') {
+		i++
+		if i < len(s) && (s[i] == '+' || s[i] == '-') {
+			i++
+		}
+		expDigits := 0
+		for i < len(s) && s[i] >= '0' && s[i] <= '9' {
+			expDigits++
+			i++
+		}
+		if expDigits == 0 {
+			return false
+		}
+	}
+	return i == len(s)
 }
 
 func hasNUL(s string) bool {

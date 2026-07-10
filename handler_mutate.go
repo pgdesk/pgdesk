@@ -60,7 +60,7 @@ func newKeySegment(res *Resource, row map[string]any) (string, bool) {
 // resource be writable).
 func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
-	if !ok || !res.writable() {
+	if !ok || !res.canCreate() {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be created.")
 		return
 	}
@@ -82,7 +82,7 @@ func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 // pg-error mapping (D7), then redirects to the new row's detail page.
 func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
-	if !ok || !res.writable() {
+	if !ok || !res.canCreate() {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be created.")
 		return
 	}
@@ -200,7 +200,7 @@ func (a *Admin) renderCreateWithErrors(w http.ResponseWriter, r *http.Request, r
 // redirects to the list. A 0-row delete (already gone) is treated as success.
 func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
-	if !ok || !res.writable() {
+	if !ok || !res.canDelete() {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be deleted.")
 		return
 	}

@@ -1,11 +1,13 @@
 package render
 
 import (
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"strings"
 	"time"
+	"unicode/utf8"
 )
 
 // StaticFuncs returns the template functions available at parse time to every
@@ -46,7 +48,14 @@ func FormatValue(v any) string {
 	case string:
 		return x
 	case []byte:
-		return string(x)
+		// bytea and jsonb both arrive as []byte via pgx. Valid UTF-8 (jsonb,
+		// text-ish blobs) renders as its text; genuine binary (bytea) is
+		// hex-encoded with a leading \x (Postgres bytea convention) so it never
+		// dumps raw bytes into HTML or corrupts CSV.
+		if utf8.Valid(x) {
+			return string(x)
+		}
+		return `\x` + hex.EncodeToString(x)
 	case time.Time:
 		return x.UTC().Format(time.RFC3339)
 	case fmt.Stringer:

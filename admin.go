@@ -25,10 +25,14 @@ import (
 )
 
 // DB is the subset of *pgxpool.Pool that pgdesk uses. Accepting the interface
-// (rather than the concrete pool) keeps the request path testable while the
-// public New still takes a *pgxpool.Pool. pgdesk never closes the pool (O3).
+// (rather than the concrete pool) keeps pgdesk usable with a wrapped or
+// instrumented pool and testable with a double; New takes a *pgxpool.Pool for the
+// common case, NewWithDB takes any implementation. pgdesk never closes it (O3).
+//
+// The method set is spelled out in full (rather than embedding an unexported
+// helper interface) so it documents itself in go doc.
 type DB interface {
-	introspect.TxBeginner
+	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 	Begin(ctx context.Context) (pgx.Tx, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
@@ -68,7 +72,19 @@ func New(pool *pgxpool.Pool, opts ...Option) (*Admin, error) {
 	return newAdmin(pool, opts...)
 }
 
-// newAdmin is the interface-typed constructor used by New and by tests.
+// NewWithDB constructs an Admin from any DB implementation instead of a concrete
+// *pgxpool.Pool. Use it to run pgdesk against an instrumented or wrapped pool, or
+// to drive it with a test double. It behaves exactly like New otherwise (same
+// introspection, same fail-closed configuration, never panics). pgdesk does not
+// own the connection's lifecycle (O3).
+func NewWithDB(db DB, opts ...Option) (*Admin, error) {
+	if db == nil {
+		return nil, ErrNoPool
+	}
+	return newAdmin(db, opts...)
+}
+
+// newAdmin is the interface-typed constructor used by New, NewWithDB, and tests.
 func newAdmin(db DB, opts ...Option) (*Admin, error) {
 	if db == nil {
 		return nil, ErrNoPool

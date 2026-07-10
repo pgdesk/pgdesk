@@ -58,14 +58,28 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 		b.WriteString(strings.Join(conds, " AND "))
 	}
 
+	// ORDER BY carries a deterministic primary-key tiebreaker after the chosen
+	// sort column. Without it, sorting by a non-unique or nullable column leaves
+	// rows with equal sort keys in an arbitrary order that can differ between page
+	// fetches, so a row may appear on two pages or be skipped. Appending the PK (in
+	// a stable ASC order) makes the total order total, and thus pagination stable.
+	order := make([]string, 0, 1+len(t.PrimaryKey))
 	if p.Sort != nil {
-		b.WriteString(" ORDER BY ")
-		b.WriteString(Ident(p.Sort.Name))
+		dir := " ASC"
 		if p.SortDesc {
-			b.WriteString(" DESC")
-		} else {
-			b.WriteString(" ASC")
+			dir = " DESC"
 		}
+		order = append(order, Ident(p.Sort.Name)+dir)
+	}
+	for _, pk := range t.PrimaryKey {
+		if p.Sort != nil && pk.Name == p.Sort.Name {
+			continue // already the primary sort key
+		}
+		order = append(order, Ident(pk.Name)+" ASC")
+	}
+	if len(order) > 0 {
+		b.WriteString(" ORDER BY ")
+		b.WriteString(strings.Join(order, ", "))
 	}
 	b.WriteString(" LIMIT ")
 	b.WriteString(args.Add(p.Limit))
