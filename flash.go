@@ -10,9 +10,12 @@ import (
 // its own dedicated, signed cookie -- signed so a tampered cookie cannot inject
 // misleading text, and still escaped as untrusted template data on render (F1).
 //
-// The cookie is short-lived, HttpOnly, SameSite=Lax, and scoped to the base path.
-// Flashes are only used on mutation paths, which already require a signing key,
-// so setFlash is a no-op without one.
+// The cookie is short-lived, Secure, HttpOnly, SameSite=Lax, and scoped to the
+// base path. Flashes are only used on mutation paths, which already require a
+// signing key, so setFlash is a no-op without one. It carries the Secure flag to
+// match the CSRF cookie: even though the payload is signed, it is human-readable
+// (e.g. "User <email> deleted.") and must not travel in the clear over a stray
+// plaintext hop.
 
 const flashCookieName = "pgdesk_flash"
 
@@ -36,6 +39,7 @@ func (a *Admin) setFlash(w http.ResponseWriter, level, message string) {
 		Name:     flashCookieName,
 		Value:    a.signer.Seal(payload),
 		Path:     a.cfg.basePath,
+		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   30,
@@ -58,6 +62,7 @@ func (a *Admin) takeFlash(w http.ResponseWriter, r *http.Request) []flashMsg {
 		Name:     flashCookieName,
 		Value:    "",
 		Path:     a.cfg.basePath,
+		Secure:   true,
 		HttpOnly: true,
 		SameSite: http.SameSiteLaxMode,
 		MaxAge:   -1,

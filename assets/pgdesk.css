@@ -246,6 +246,7 @@ h1 { font-size: 21px; font-weight: 640; letter-spacing: -0.02em; margin: 0 0 4px
 }
 .pg-list-header-actions, .pg-detail-actions { display: flex; gap: 8px; align-items: center; }
 .pg-detail-actions form { margin: 0; }
+.pg-resource-description { margin: 4px 0 0; color: var(--pg-muted); font-size: 0.9rem; }
 
 /* -- Banners -------------------------------------------------------------- */
 .pg-flash {

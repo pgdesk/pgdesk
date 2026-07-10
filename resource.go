@@ -1,6 +1,7 @@
 package pgdesk
 
 import (
+	"errors"
 	"fmt"
 	"strings"
 
@@ -42,7 +43,7 @@ type Resource struct {
 	actions     map[string]*action
 	actionOrder []string
 
-	err error // first configuration error; checked by New()
+	err error // accumulated configuration errors (errors.Join); checked by New()
 }
 
 func newResource(name string, t *introspect.Table, defaultPageSize int) *Resource {
@@ -71,8 +72,8 @@ func (r *Resource) fieldFor(name string) *fieldConfig {
 	return fc
 }
 
-// resolve turns column names into catalog columns, recording the first failure
-// on the resource so New() can reject the whole construction (D2).
+// resolve turns column names into catalog columns, recording every failure on
+// the resource so New() reports all configuration mistakes at once (D2).
 func (r *Resource) resolve(names ...string) ([]*introspect.Column, bool) {
 	cols := make([]*introspect.Column, 0, len(names))
 	for _, n := range names {
@@ -86,10 +87,12 @@ func (r *Resource) resolve(names ...string) ([]*introspect.Column, bool) {
 	return cols, true
 }
 
+// addErr accumulates a configuration error. All errors are joined so a resource
+// with several bad column names surfaces them together, rather than one per
+// rebuild. errors.Is/As traverse the join, so callers matching a sentinel still
+// work.
 func (r *Resource) addErr(err error) {
-	if r.err == nil {
-		r.err = err
-	}
+	r.err = errors.Join(r.err, err)
 }
 
 // ListDisplay sets the columns shown in the list view, in order. Unknown columns
@@ -151,6 +154,25 @@ func (r *Resource) Redact(cols ...string) {
 		if _, ok := r.resolve(n); ok {
 			r.fieldFor(n).redact = true
 		}
+	}
+}
+
+// FieldLabel overrides the display label for a single column in list and form
+// views. Without it a column falls back to a humanized version of its name.
+// Unknown columns fail construction.
+func (r *Resource) FieldLabel(col, label string) {
+	if _, ok := r.resolve(col); ok {
+		r.fieldFor(col).label = label
+	}
+}
+
+// Widget overrides the form input rendered for a column, instead of the default
+// chosen from the column's type. Use it to force, for example, a Textarea on a
+// long text column or the JSON editor on a jsonb column. Unknown columns fail
+// construction.
+func (r *Resource) Widget(col string, w Widget) {
+	if _, ok := r.resolve(col); ok {
+		r.fieldFor(col).widget = w
 	}
 }
 

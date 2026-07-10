@@ -45,7 +45,7 @@ func (a *Admin) clampPageSize(n int) int {
 }
 
 func (a *Admin) resourceMeta(res *Resource) resourceMeta {
-	return resourceMeta{Name: res.name, Label: res.Label, LabelPlural: res.LabelPlural}
+	return resourceMeta{Name: res.name, Label: res.Label, LabelPlural: res.LabelPlural, Description: res.Description}
 }
 
 // fieldLabel returns the display label for a column: the operator override if

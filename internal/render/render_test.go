@@ -39,6 +39,27 @@ func TestFormatValueNil(t *testing.T) {
 	}
 }
 
+// TestFormatValueBytes proves issue #13b is fixed: pgx delivers both bytea and
+// jsonb as []byte. Genuine binary (invalid UTF-8) is hex-encoded with a leading
+// \x (Postgres bytea convention) so it never dumps raw bytes into HTML or
+// corrupts CSV; valid-UTF-8 bytes (jsonb, text-ish blobs) render as their text
+// unchanged.
+func TestFormatValueBytes(t *testing.T) {
+	// Invalid UTF-8 -> \x hex.
+	if got := FormatValue([]byte{0x0a, 0x1b, 0x2c, 0xff, 0xfe}); got != `\x0a1b2cfffe` {
+		t.Errorf("invalid-UTF8 bytes = %q, want %q", got, `\x0a1b2cfffe`)
+	}
+	// Valid UTF-8 jsonb -> unchanged text.
+	jsonb := `{"a":1}`
+	if got := FormatValue([]byte(jsonb)); got != jsonb {
+		t.Errorf("jsonb bytes = %q, want %q unchanged", got, jsonb)
+	}
+	// Empty []byte is valid UTF-8 -> empty string, not \x.
+	if got := FormatValue([]byte{}); got != "" {
+		t.Errorf("empty bytes = %q, want empty string", got)
+	}
+}
+
 func TestCellValue(t *testing.T) {
 	if got := string(CellValue(true)); !strings.Contains(got, "pg-badge-ok") {
 		t.Errorf("true -> %q, want an ok badge", got)

@@ -77,6 +77,59 @@ func TestParseListFailsClosed(t *testing.T) {
 	}
 }
 
+// TestEscapeLike proves issue #15a/#13c is fixed: LIKE metacharacters in a
+// search/filter term are escaped (backslash first) so they match literally and
+// a trailing backslash can't raise Postgres 22025.
+func TestEscapeLike(t *testing.T) {
+	cases := map[string]string{
+		"50%":      `50\%`,
+		"a_b":      `a\_b`,
+		`back\end`: `back\\end`,
+		`trail\`:   `trail\\`, // trailing backslash escaped -> no 22025
+		"100%_off": `100\%\_off`,
+		"plain":    "plain",
+	}
+	for in, want := range cases {
+		if got := escapeLike(in); got != want {
+			t.Errorf("escapeLike(%q) = %q, want %q", in, got, want)
+		}
+	}
+}
+
+// TestSearchTermEscaped proves the escape is applied where the term is wrapped
+// with %...% for ILIKE search.
+func TestSearchTermEscaped(t *testing.T) {
+	res := filterTestResource()
+	lr, err := parse(t, res, "q=50%25") // %25 decodes to a literal '%'
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if lr.search == nil || lr.search.Term != `%50\%%` {
+		t.Fatalf("search term = %+v, want wrapped-and-escaped %q", lr.search, `%50\%%`)
+	}
+}
+
+// TestILikeFilterEscaped proves the escape is applied on the text ilike filter
+// path, including a trailing backslash that would otherwise error in Postgres.
+func TestILikeFilterEscaped(t *testing.T) {
+	res := filterTestResource()
+	res.Filters("email")
+	if res.err != nil {
+		t.Fatalf("Filters: %v", res.err)
+	}
+	lr, err := parse(t, res, `f_email__ilike=a_b%5C`) // %5C decodes to a trailing backslash
+	if err != nil {
+		t.Fatalf("parse: %v", err)
+	}
+	if len(lr.filters) != 1 {
+		t.Fatalf("want 1 filter, got %d", len(lr.filters))
+	}
+	term, _ := lr.filters[0].Values[0].(string)
+	if term != `%a\_b\\%` {
+		t.Fatalf("ilike term = %q, want %q", term, `%a\_b\\%`)
+	}
+}
+
 func TestParseListPageSizeClamped(t *testing.T) {
 	res := filterTestResource()
 	lr, err := parse(t, res, "page_size=100000")
