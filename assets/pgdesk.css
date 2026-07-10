@@ -12,7 +12,7 @@
   --pg-hover:         #f2f4f7;
   --pg-text:          #131720;
   --pg-text-2:        #434c5a;
-  --pg-muted:         #6a7482;
+  --pg-muted:         #5b6573;
 
   /* brand — deep enterprise blue for solids, brighter blue for interaction */
   --pg-accent:        #2563eb;
@@ -123,7 +123,24 @@ body {
   text-rendering: optimizeLegibility;
   font-variant-numeric: tabular-nums;
 }
-::selection { background: var(--pg-accent-weak); }
+::selection { background: var(--pg-accent-weak); color: var(--pg-text); }
+
+/* screen-reader-only: visually hidden, still announced (skip link target label,
+   otherwise-glyph-only column headers). */
+.pg-sr-only {
+  position: absolute; width: 1px; height: 1px; padding: 0; margin: -1px;
+  overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+}
+
+/* skip-to-content: off-screen until focused, then pinned top-left (WCAG 2.4.1). */
+.pg-skip {
+  position: fixed; left: 12px; top: -60px; z-index: 100;
+  padding: 9px 14px; border-radius: var(--pg-radius-sm);
+  background: var(--pg-accent-strong); color: var(--pg-accent-text);
+  font-weight: 600; box-shadow: var(--pg-shadow-md);
+  transition: top .15s ease;
+}
+.pg-skip:focus { top: 12px; text-decoration: none; color: var(--pg-accent-text); }
 
 a { color: var(--pg-accent); text-decoration: none; transition: color .15s ease; }
 a:hover { color: var(--pg-accent-hover); text-decoration: underline; text-underline-offset: 2px; }
@@ -217,7 +234,9 @@ a:hover { color: var(--pg-accent-hover); text-decoration: underline; text-underl
   border-radius: 0 3px 3px 0; background: var(--pg-accent);
 }
 
-.pg-main { flex: 1; min-width: 0; padding: 28px 32px 64px; max-width: 1180px; }
+.pg-main { flex: 1; min-width: 0; padding: 28px 32px 64px; max-width: 1180px; scroll-margin-top: var(--pg-header-h); }
+/* skip-link target is programmatically focused but not a visual focus stop */
+.pg-main:focus { outline: none; }
 
 /* ── Typography ─────────────────────────────────────────────────────────── */
 h1 { font-size: 21px; font-weight: 640; letter-spacing: -0.02em; margin: 0 0 4px; color: var(--pg-text); }
@@ -254,7 +273,6 @@ h1 { font-size: 21px; font-weight: 640; letter-spacing: -0.02em; margin: 0 0 4px
   border-radius: var(--pg-radius); overflow: hidden; box-shadow: var(--pg-shadow);
 }
 .pg-table thead th {
-  position: sticky; top: var(--pg-header-h); z-index: 1;
   background: var(--pg-surface-2); color: var(--pg-muted);
   font-weight: 600; font-size: 11px; text-transform: uppercase; letter-spacing: .05em;
   text-align: left; padding: 10px 14px; white-space: nowrap;
@@ -341,6 +359,48 @@ input[type=checkbox] { width: auto; min-height: 0; accent-color: var(--pg-accent
 .pg-filter-actions { flex-direction: row; gap: 8px; align-items: center; }
 .pg-search { display: flex; gap: 8px; margin-bottom: 16px; }
 .pg-search input { flex: 1; }
+
+/* filter bar wrapper owns the outer spacing; the form and chips sit inside it */
+.pg-filterbar { margin-bottom: 18px; }
+.pg-filterbar .pg-filters { margin-bottom: 0; }
+/* desktop: the bar is always shown, so the mobile toggle + trigger are absent */
+.pg-filter-toggle { display: none; }
+.pg-filter-trigger { display: none; }
+.pg-filter-trigger svg { width: 15px; height: 15px; }
+.pg-count {
+  display: inline-grid; place-items: center; min-width: 18px; height: 18px; padding: 0 5px;
+  border-radius: 999px; background: var(--pg-accent-strong); color: var(--pg-accent-text);
+  font-size: 11px; font-weight: 600; line-height: 1;
+}
+
+/* "More filters" overflow — native <details> popover (CSP-clean, keyboard-native) */
+.pg-more { position: relative; align-self: flex-end; }
+.pg-more > summary { list-style: none; user-select: none; }
+.pg-more > summary::-webkit-details-marker { display: none; }
+.pg-more > summary::after { content: "▾"; margin-left: 3px; color: var(--pg-muted); font-size: 11px; }
+.pg-more[open] > summary { border-color: var(--pg-accent); color: var(--pg-accent); }
+.pg-more-panel {
+  position: absolute; top: calc(100% + 6px); left: 0; z-index: 30;
+  display: flex; flex-direction: column; gap: 12px; min-width: 240px; padding: 14px;
+  background: var(--pg-surface); border: 1px solid var(--pg-border-strong);
+  border-radius: var(--pg-radius); box-shadow: var(--pg-shadow-md);
+}
+
+/* active-filter chips — each is a link that drops its own constraint */
+.pg-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.pg-chip {
+  display: inline-flex; align-items: center; gap: 1px;
+  padding: 3px 7px 3px 11px; border-radius: 999px; font-size: 12.5px; font-weight: 500;
+  color: var(--pg-text-2); background: var(--pg-surface-2); border: 1px solid var(--pg-border-strong);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+}
+.pg-chip:hover {
+  text-decoration: none; color: var(--pg-danger);
+  border-color: var(--pg-danger-border); background: var(--pg-danger-bg);
+}
+.pg-chip-key { color: var(--pg-muted); font-weight: 600; }
+.pg-chip:hover .pg-chip-key { color: var(--pg-danger); }
+.pg-chip-x { display: inline-grid; place-items: center; width: 16px; height: 16px; font-size: 15px; line-height: 1; }
 .pg-action-bar {
   display: flex; gap: 8px; align-items: center; margin-bottom: 12px; padding: 10px 12px;
   background: var(--pg-accent-weak); border: 1px solid var(--pg-border); border-radius: var(--pg-radius);
@@ -414,7 +474,28 @@ input[type=checkbox] { width: auto; min-height: 0; accent-color: var(--pg-accent
   .pg-nav ul { display: flex; gap: 6px; flex-wrap: wrap; }
   .pg-nav-active::before { display: none; }
   .pg-main { padding: 20px 16px 48px; }
-  .pg-table thead th { position: static; }
   .pg-field-row { flex-direction: column; gap: 3px; }
   .pg-field-row dt { width: auto; }
+  /* 16px floor stops iOS Safari from auto-zooming when a field gains focus */
+  input, textarea, select { font-size: 16px; }
+
+  /* mobile: collapse the whole filter form behind a "Filters (n)" trigger.
+     Pure CSS (checkbox toggle) — no JS, consistent with the no-JS baseline. */
+  .pg-filter-toggle {
+    position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0;
+    overflow: hidden; clip: rect(0, 0, 0, 0); white-space: nowrap; border: 0;
+  }
+  .pg-filter-trigger { display: inline-flex; }
+  .pg-filter-toggle:focus-visible ~ .pg-filter-trigger { box-shadow: 0 0 0 3px var(--pg-ring); }
+  .pg-filters { display: none; }
+  .pg-filter-toggle:checked ~ .pg-filters {
+    display: flex; flex-direction: column; align-items: stretch; margin-top: 10px;
+  }
+  .pg-filter input, .pg-filter select { min-width: 0; width: 100%; }
+  /* in the narrow sheet the overflow disclosure expands inline instead of floating */
+  .pg-more { align-self: stretch; }
+  .pg-more[open] > .pg-more-panel {
+    position: static; min-width: 0; padding: 12px 0 0;
+    border: none; box-shadow: none; background: transparent;
+  }
 }
