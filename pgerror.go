@@ -27,7 +27,7 @@ type uniqueLookup func(constraintName string) ([]string, bool)
 
 // mapPgError classifies a *pgconn.PgError by SQLSTATE into field/form errors
 // (D7). constraintMsgs supplies operator-friendly overrides keyed by constraint
-// name (WithConstraintMessage); uniqueCols resolves a unique constraint to its
+// name (ConstraintMessage); uniqueCols resolves a unique constraint to its
 // columns (may be nil). A non-Postgres error yields a generic form error with no
 // internal detail (F5: internals never reach the browser).
 func mapPgError(err error, constraintMsgs map[string]string, uniqueCols uniqueLookup) mappedError {

@@ -29,7 +29,7 @@ var ErrColumnValueMismatch = errors.New("pgdesk/query: column/value count mismat
 //     relation relies on the key+scope predicate alone to identify the row; a
 //     zero-row update is disambiguated as out-of-scope (404) via ExistsRow, so
 //     there are no false conflicts, at the cost of no lost-update protection.
-//     Declare a version column with Resource.WithVersionColumn to restore it.
+//     Declare a version column with Resource.VersionColumn to restore it.
 type VersionStrategy struct {
 	// Column, when non-nil, is an explicit version column (e.g. "version" or
 	// "updated_at").

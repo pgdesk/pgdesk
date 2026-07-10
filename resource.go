@@ -105,6 +105,11 @@ func (r *Resource) ListDisplay(cols ...string) {
 
 // SearchFields sets the columns matched by the search box (text columns). Unknown
 // columns fail construction.
+//
+// Search uses a case-insensitive substring match (ILIKE '%term%'), whose leading
+// wildcard cannot use a plain B-tree index, so on a large table it is a
+// sequential scan bounded by the query timeout. For search-heavy large tables,
+// add a trigram GIN index (pg_trgm) on the searched columns.
 func (r *Resource) SearchFields(cols ...string) {
 	if resolved, ok := r.resolve(cols...); ok {
 		r.searchFields = resolved
@@ -178,6 +183,11 @@ func (r *Resource) Widget(col string, w Widget) {
 
 // DefaultSort sets the default ordering. A leading '-' means descending
 // (e.g. "-created_at"). The column must exist.
+//
+// The list uses OFFSET pagination with a primary-key tiebreaker for stable
+// ordering. OFFSET reads and discards the skipped rows, so very deep pages on a
+// large table grow linearly more expensive; the admin is intended for browsing
+// and filtering, not for paging tens of thousands of rows deep.
 func (r *Resource) DefaultSort(spec string) {
 	desc := false
 	name := spec
@@ -207,17 +217,20 @@ func (r *Resource) Key(cols ...string) {
 	}
 }
 
-// WithVersionColumn uses an explicit version/updated_at column for optimistic
+// VersionColumn uses an explicit version/updated_at column for optimistic
 // concurrency instead of xmin (O1). The column must exist.
-func (r *Resource) WithVersionColumn(col string) {
+//
+// It is a mutating setter, not an option constructor; the With* prefix in this
+// package is reserved for functions that return an Option value.
+func (r *Resource) VersionColumn(col string) {
 	if resolved, ok := r.resolve(col); ok {
 		r.versionCol = resolved[0]
 	}
 }
 
-// WithConstraintMessage maps a PostgreSQL constraint name to a friendly message
+// ConstraintMessage maps a PostgreSQL constraint name to a friendly message
 // shown when that constraint is violated (D7).
-func (r *Resource) WithConstraintMessage(name, msg string) {
+func (r *Resource) ConstraintMessage(name, msg string) {
 	r.constraintMsgs[name] = msg
 }
 
