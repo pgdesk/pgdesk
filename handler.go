@@ -19,8 +19,8 @@ const staticPrefix = "/_static/"
 // buildHandler assembles the admin's http.Handler exactly once and caches it.
 // The chain, outermost first:
 //
-//	recover → base (security headers, CSP nonce, request ID, logger, catalog
-//	snapshot) → host middleware → internal routing mux
+//	recover -> base (security headers, CSP nonce, request ID, logger, catalog
+//	snapshot) -> host middleware -> internal routing mux
 //
 // Authorization is NOT here; it is enforced per-route in each handler against
 // the request Principal, fail-closed (O6).
@@ -57,14 +57,14 @@ func (a *Admin) buildHandler() http.Handler {
 
 		h := chain(stripped, a.cfg.middleware...) // host middleware (may set Principal)
 		h = a.baseMiddleware(h)                   // request-scoped context + headers
-		h = a.recoverMiddleware(h)                // outermost: escaped panic → 500
+		h = a.recoverMiddleware(h)                // outermost: escaped panic -> 500
 		a.handler = h
 	})
 	return a.handler
 }
 
 // recoverMiddleware converts any panic that escapes a handler into a logged,
-// request-ID'd generic 500 — a live server never crashes on a request-path panic
+// request-ID'd generic 500 -- a live server never crashes on a request-path panic
 // (cross-cutting convention, F5).
 func (a *Admin) recoverMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -285,7 +285,7 @@ func (a *Admin) renderPage(w http.ResponseWriter, r *http.Request, status int, n
 }
 
 // renderError renders the opaque error page. It NEVER includes stack traces,
-// SQL, schema names, or driver errors — only a generic message plus the request
+// SQL, schema names, or driver errors -- only a generic message plus the request
 // ID for correlation with server logs (F5).
 func (a *Admin) renderError(w http.ResponseWriter, r *http.Request, status int, message string) {
 	data := errorView{

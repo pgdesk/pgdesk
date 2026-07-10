@@ -7,7 +7,7 @@ import (
 
 // Flash messages give one-shot feedback across the post-mutation redirect (e.g.
 // "User created"). Because sessions belong to the host, pgdesk carries flashes in
-// its own dedicated, signed cookie — signed so a tampered cookie cannot inject
+// its own dedicated, signed cookie -- signed so a tampered cookie cannot inject
 // misleading text, and still escaped as untrusted template data on render (F1).
 //
 // The cookie is short-lived, HttpOnly, SameSite=Lax, and scoped to the base path.
@@ -65,7 +65,7 @@ func (a *Admin) takeFlash(w http.ResponseWriter, r *http.Request) []flashMsg {
 
 	payload, err := a.signer.Open(c.Value)
 	if err != nil {
-		return nil // tampered or stale signature → ignore
+		return nil // tampered or stale signature -> ignore
 	}
 	var fp flashPayload
 	if err := json.Unmarshal(payload, &fp); err != nil {

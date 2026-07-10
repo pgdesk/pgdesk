@@ -1,4 +1,4 @@
-# pgdesk — Authorization Design
+# pgdesk -- Authorization Design
 
 Status: **implemented**, superseding the seven-method `Authorizer`.
 Pre-1.0, zero users; the interface broke now rather than never.
@@ -20,7 +20,7 @@ is what produced the defects this design fixes.
 | *Which rows of R exist for me?* | a set | `Scoper` |
 
 The first is a boolean gate on a route. The second is a predicate on a query.
-Trying to answer the second with the first — a per-row Go callback — breaks
+Trying to answer the second with the first -- a per-row Go callback -- breaks
 pagination (a `LIMIT n+1` lookahead post-filtered in Go yields short pages and a
 wrong `HasNext`) and cannot be made atomic against a concurrent write.
 
@@ -35,8 +35,8 @@ simpler, the faster, and the only correct option. That is the central idea here.
   `Decision` is `Deny`. A zero-valued, partially-written, or forgotten decision
   denies without anyone remembering to make it so.
 - **No I/O on the decision path.** `Authorize` is a pure function of its
-  arguments for every authorizer pgdesk ships. The invariant from `auth.go` —
-  *the capability is checked before any query runs* — is restored unconditionally.
+  arguments for every authorizer pgdesk ships. The invariant from `auth.go` --
+  *the capability is checked before any query runs* -- is restored unconditionally.
 - **Predicates belong in SQL.** Row-level authorization is a `WHERE` fragment,
   not a callback. This is what makes it both fast and atomic.
 - **Optional interfaces over fat ones.** Row scoping is opt-in via a type
@@ -114,7 +114,7 @@ func (f AuthorizerFunc) Authorize(ctx context.Context, attrs Attributes) (Decisi
 }
 
 // AllowAll is an Authorizer value that permits every capability and restricts no
-// rows — a convenience for hosts that gate the whole admin behind their own
+// rows -- a convenience for hosts that gate the whole admin behind their own
 // middleware. It is a value, not a type, following io.Discard and
 // slog.DiscardHandler: WithAuthorizer(pgdesk.AllowAll).
 var AllowAll Authorizer = allowAll{}
@@ -190,7 +190,7 @@ func permitted(ctx context.Context, az Authorizer, attrs Attributes) (bool, erro
 
 ```go
 // Constraint is one predicate ANDed into every statement pgdesk issues for a
-// resource. Build one with Eq, Ne, or In — there is no other constructor, so a
+// resource. Build one with Eq, Ne, or In -- there is no other constructor, so a
 // Constraint is always well-formed. The column is resolved against the live
 // catalog snapshot (D3) and emitted as a quoted identifier; the value becomes $N.
 // An unknown column, or an operator the column's type category forbids, denies
@@ -202,7 +202,7 @@ func Ne(column string, value any) Constraint    // column <> value (SQL: exclude
 func In(column string, values ...any) Constraint // column IN (values...)
 
 // ScopeOnly lifts a scope function into an Authorizer that abstains on every
-// capability and only narrows rows — for a rule that restricts which rows a
+// capability and only narrows rows -- for a rule that restricts which rows a
 // principal may reach but makes no permission decision. fn may be a bare function
 // or a method value, so a stateful scoper needs no wrapper.
 func ScopeOnly(fn func(ctx context.Context, attrs Attributes) ([]Constraint, error)) Authorizer
@@ -213,15 +213,15 @@ func ScopeOnly(fn func(ctx context.Context, attrs Attributes) ([]Constraint, err
 // resource.
 //
 // Scope answers "which rows exist for me"; Authorize answers "may I". Keeping
-// them apart is what makes list pagination correct — the constraint is in the
-// query, so LIMIT applies after filtering — and what makes row-level
+// them apart is what makes list pagination correct -- the constraint is in the
+// query, so LIMIT applies after filtering -- and what makes row-level
 // authorization atomic: the predicate rides in the mutation's own WHERE clause,
 // leaving no window between the check and the write.
 //
 // Scope takes the same Attributes as Authorize, so the constraint may depend on
 // the capability: an operator can be permitted to see a row on the list page and
 // still be forbidden to update or delete it. pgdesk calls Scope with the
-// capability of the statement it is about to build — CapList for the list and
+// capability of the statement it is about to build -- CapList for the list and
 // export, CapView for the detail page and FK labels, CapUpdate for the edit form
 // and the UPDATE, CapDelete for the DELETE, CapRunAction for a bulk action's key
 // selection.
@@ -239,7 +239,7 @@ type Scoper interface {
 
 // Scope implements Scoper for a DenyOverrides set by concatenating the
 // constraints of every member that is itself a Scoper. Constraints compose by
-// conjunction, so — as with Deny — adding an authorizer can only narrow the
+// conjunction, so -- as with Deny -- adding an authorizer can only narrow the
 // rows a principal can reach.
 func (set denyOverrides) Scope(ctx context.Context, attrs Attributes) ([]Constraint, error)
 ```
@@ -252,7 +252,7 @@ names a row, or the constraint is decorative. The exhaustive list:
 | Statement | Callers | Effect of the scope |
 |-----------|---------|---------------------|
 | `BuildList` | list, CSV export | Rows outside scope never appear. `LIMIT n+1` lookahead stays correct. |
-| `SelectRow` | detail, edit form | Out-of-scope row → 0 rows → **404**, never 403. |
+| `SelectRow` | detail, edit form | Out-of-scope row -> 0 rows -> **404**, never 403. |
 | `UpdateRow` | update | Predicate rides in the mutation's `WHERE`. Atomic. |
 | `DeleteRow` | delete | Same. Closes the delete TOCTOU, which no version token can. |
 | `BuildFKLabels` | FK label resolution | Uses the *referenced* resource's scope. |
@@ -263,7 +263,7 @@ Three consequences are worth stating explicitly, because each fixes a live bug.
 **404, not 403.** An out-of-scope row is indistinguishable from a nonexistent
 one. The response cannot be used to enumerate rows.
 
-**A scoped mutation affecting zero rows is ambiguous** — the row may have moved
+**A scoped mutation affecting zero rows is ambiguous** -- the row may have moved
 under us (the O1 lost-update guard) or it may simply not be ours. Today, zero
 rows unconditionally means `errConflict`, which renders as *"someone else changed
 this row, reload"*. Under a scope that would tell a permanently forbidden
@@ -280,7 +280,7 @@ operator to keep retrying. We pay for the distinction only on the failure path:
 The keys are therefore filtered before the action sees them: one scoped
 `SELECT key ... WHERE key = ANY($1) AND <scope>` returns the subset the principal
 may reach, and only that subset is handed to the action. Without this, a bulk
-action is an unbounded IDOR — the capability check is per-resource, and the
+action is an unbounded IDOR -- the capability check is per-resource, and the
 action receives whatever keys the form posted.
 
 **FK label resolution consults the referenced resource.** Today
@@ -290,12 +290,12 @@ authorizer involved. A `users` list leaks `employees.full_name` even when the
 `employees` resource is restricted. The rule becomes: resolve labels only for
 referenced tables that are registered resources for which the principal holds
 `CapView`, and AND that resource's scope into the lookup. This is also a
-simplification — the current `refRegistered` branch, which gates only the *link*
+simplification -- the current `refRegistered` branch, which gates only the *link*
 and never the label, goes away.
 
 ## 5. Example use
 
-The host's principal, and a helper to reach its concrete type — `Principal` is
+The host's principal, and a helper to reach its concrete type -- `Principal` is
 minimal by design, so the host asserts to its own type:
 
 ```go
@@ -333,7 +333,7 @@ var adminWrites = pgdesk.AuthorizerFunc(func(_ context.Context, attrs pgdesk.Att
 
 That `default: return Abstain` is the whole extensibility story, and it is worth
 being precise about what it buys and what it does not. Adding `CapExport` to
-pgdesk no longer breaks the host's build — but nor does it silently grant, because
+pgdesk no longer breaks the host's build -- but nor does it silently grant, because
 an all-abstain result denies. A host who writes `default: return Allow` has opted
 out of that guarantee, knowingly. The old seven-method interface bought the same
 safety with a compile error, which is louder but hostile; this buys it with a
@@ -358,7 +358,7 @@ pgdesk.WithAuthorizer(pgdesk.DenyOverrides(adminWrites, frozenLedger))
 
 This is the entire argument for a tri-state `Decision`. With a boolean interface,
 `frozenLedger` would have to return `true` for every request it does not care
-about — meaning it *grants* — and now ordering matters, and an ordering mistake
+about -- meaning it *grants* -- and now ordering matters, and an ordering mistake
 widens access. With `Abstain` as the identity, you can append a tenth rule and be
 certain, without reading it, that nobody gained a permission.
 
@@ -386,7 +386,7 @@ pgdesk.WithAuthorizer(pgdesk.DenyOverrides(
 
 Note what is *absent*. There is no `map[string]any`, so there is no opportunity
 to compare a Go `string` against the `[16]byte` that pgx returns for a `uuid`
-column (`pgtype/uuid.go:292`) — a comparison that compiles, never panics, and is
+column (`pgtype/uuid.go:292`) -- a comparison that compiles, never panics, and is
 always false. The value goes to `$N`; Postgres compares it to `author_id` using
 the column's own type. Type coercion is the database's job, and this design gives
 it back.
@@ -422,13 +422,13 @@ is no interval during which it can be falsified.
 - **No query runs during authorization.** The pre-query invariant holds
   unconditionally, so a denied principal cannot force a database round trip.
 - **Constraints are pushed down.** They land in the same `WHERE` as a user
-  filter, use the same indexes, and `LIMIT` applies after them — so the `n+1`
+  filter, use the same indexes, and `LIMIT` applies after them -- so the `n+1`
   lookahead pagination (pgdesk issues no `count(*)`) stays correct and cheap.
 - **Resolution is a map lookup per constraint** against the in-memory catalog
   snapshot (D1). The typical scope has one constraint.
 - **`Attributes` is a small value**, passed by value, no allocation.
 - **There is one authorizer per admin.** The per-resource override is gone (see
-  §7), so the guard and the view model read a single `cfg.authorizer` field. No
+  section 7), so the guard and the view model read a single `cfg.authorizer` field. No
   per-request composition, no allocation.
 - **Extra queries are confined to failure and to actions**: the 409-vs-404 probe
   runs only after a mutation has already affected zero rows; the bulk-action key
@@ -439,14 +439,14 @@ is no interval during which it can be falsified.
 
 ## 7. Rejected alternatives
 
-**A lazy row loader on `Attributes`** — `Row func(context.Context) (map[string]any, error)`.
+**A lazy row loader on `Attributes`** -- `Row func(context.Context) (map[string]any, error)`.
 Rejected on four independent grounds. It hides I/O in a struct field of a value
 type. It punctures the pre-query invariant, and a conditionally-held invariant is
 not an invariant. It is inherently racy: the row it reads is not the row the
 subsequent `UPDATE` touches, and `DeleteRow` carries no version token, so nothing
-closes the window. And `map[string]any` hands hosts raw pgx values — `[16]byte`
+closes the window. And `map[string]any` hands hosts raw pgx values -- `[16]byte`
 for `uuid`, `pgtype.Numeric` for `numeric`, `pgtype.InfinityModifier` for an
-infinite `timestamptz` — inside security predicates, where a wrong type
+infinite `timestamptz` -- inside security predicates, where a wrong type
 comparison is silent. The scope hook subsumes every use case the row loader was
 meant to serve, and does so atomically.
 
@@ -459,7 +459,7 @@ no user is not extensibility.
 compile-time row type to parameterize over.
 
 **The names `Chain` and `Request`.** Rejected: `chain()` already exists in this
-package (`handler.go:58`) and means sequential middleware wrapping — a different
+package (`handler.go:58`) and means sequential middleware wrapping -- a different
 algorithm. `Request` collides with the `*http.Request` in scope at every call
 site. `DenyOverrides` names its combining algorithm exactly, and is the term of
 art.
@@ -481,7 +481,7 @@ breaking anyone; that is precisely what the struct is for.
 |--------|-------|-----|
 | UI affordances derive from `res.writable()`, not the authorizer; denied operators see buttons that 403 | `handler_crud.go:154,210` | View model calls the same `allowed()` as the guard |
 | A second authz vocabulary, `action.allowed func(Principal) bool`, no ctx, no error, AND-ed as a *second enforcement gate* | `action.go:27`, `handler_action.go:43` | Deleted; expressed as an authorizer in a `DenyOverrides` set |
-| Per-resource authorizer **replaces** the admin-wide one, so it can *widen* access — and silently drops its row `Scope` | `handler.go:177-182` | `Resource.Authorize` deleted; authorization is admin-wide |
+| Per-resource authorizer **replaces** the admin-wide one, so it can *widen* access -- and silently drops its row `Scope` | `handler.go:177-182` | `Resource.Authorize` deleted; authorization is admin-wide |
 | FK label resolution reads unregistered, unauthorized tables, and resolves the referenced table by **bare name** across schemas | `handler_list.go:235,270` | `resolveRef` uses `fk.RefSchema`; `refResource` requires the same schema-qualified table. Scope-aware labels still pending. |
 | `DELETE` has no version token; any check-then-delete is racy | `handler_mutate.go:219` | The predicate is in the `DELETE`'s own `WHERE` |
 | Adding a capability breaks every host's build | `auth.go:41-49` | One method; unknown capabilities abstain, which denies |
@@ -490,7 +490,7 @@ breaking anyone; that is precisely what the struct is for.
 
 ---
 
-## Appendix C — Implementation status
+## Appendix C -- Implementation status
 
 A second review pass (six independent reviewers, library-user lens) tightened the
 surface and closed real defects. Changes from that pass:
@@ -498,26 +498,26 @@ surface and closed real defects. Changes from that pass:
 - **Simplicity.** `Op` and its constants are gone; a `Constraint` is opaque and
   built only by `Eq`, `Ne`, or `In`, so it cannot be malformed (`checkArity` and
   `ErrBadScope` deleted with it). A pure row-restricting rule is a plain function
-  wrapped in `ScopeOnly` — no no-op `Authorize` boilerplate. `AllowAll` is now a
+  wrapped in `ScopeOnly` -- no no-op `Authorize` boilerplate. `AllowAll` is now a
   value, not a type.
-- **Security — INSERT/UPDATE could write outside a scope.** An `Eq` constraint is
+- **Security -- INSERT/UPDATE could write outside a scope.** An `Eq` constraint is
   now pinned on the write (`enforceScope`): the scoped column is written from the
   constraint value, overriding operator input and adding the column if absent, so
   a scoped operator can neither create nor move a row out of their scope. Proven
   against a live database.
-- **Functional — FK labels broke under PgBouncer.** `BuildFKLabels` bound a `[]any`
+- **Functional -- FK labels broke under PgBouncer.** `BuildFKLabels` bound a `[]any`
   as one array argument, which pgx cannot encode in transaction-pooling modes.
-  It now uses individual `IN ($1, $2, …)` placeholders, which encode in every mode.
+  It now uses individual `IN ($1, $2, ...)` placeholders, which encode in every mode.
 - **`labelColumn`** now skips columns the referenced resource marks `hidden`, so a
   hidden column cannot resurface as an FK label.
-- **`CountRowsInScope`** uses a single-column `count(DISTINCT k) … IN (…)` fast path
+- **`CountRowsInScope`** uses a single-column `count(DISTINCT k) ... IN (...)` fast path
   (protocol-safe and duplicate/non-unique-key safe), falling back to the OR-of-ANDs
   form only for composite keys.
 - Hygiene: `resolveFKLabels` checks `rows.Err()`; `vetActionKeys` scans a `bigint`
   into `int64`; the `cap` parameter no longer shadows the builtin.
 - **Ergonomics.** `ActionFunc` now receives a `Keys` value instead of `[][]any`.
   Because the key columns are introspected, `Keys.Int64s` / `Keys.Strings` hand
-  back a concretely-typed slice ready to bind to `= ANY($n)` — friendlier than a
+  back a concretely-typed slice ready to bind to `= ANY($n)` -- friendlier than a
   raw `[][]any`, and safer, since a `[]any` bound as an argument fails to encode
   under pgx's PgBouncer-compatible modes. `Raw` covers composite keys.
 - Tests added for the fail-closed paths: `ScopeOnly`, `enforceScope` (overwrite /
@@ -565,14 +565,14 @@ Also landed earlier (independent of the reshape):
   only to a registered resource backed by that same schema-qualified table.
 
 Remaining limits: an `Eq` scope is pinned on write, but `Ne` and `In` scopes
-constrain only which rows a write may *target*, not the values written — mark such
+constrain only which rows a write may *target*, not the values written -- mark such
 columns `Readonly` if the operator must not set them. Column-level authorization
 (masking a column) and a boolean `OR` across constraints remain out of scope for
 v1; both are additive when a use case arrives.
 
 ---
 
-## Appendix A — Postgres RLS
+## Appendix A -- Postgres RLS
 
 RLS is the right *complement* to this design and the wrong *primary* mechanism
 for it. It is defense in depth: it still applies if a future route forgets its
@@ -583,7 +583,7 @@ It was rejected as primary for reasons that are specific and checkable:
 
 1. **pgdesk's reads are not transactional.** `withTx` is called from four places,
    all mutations. List, detail, export, and FK-label lookups go through
-   `runQuery` → `a.db.Query` directly on the pool, and a single list page touches
+   `runQuery` -> `a.db.Query` directly on the pool, and a single list page touches
    several pooled connections. `set_config(..., true)` has `SET LOCAL` semantics
    and reverts at the end of each implicit single-statement transaction, so the
    GUC would be unset for exactly the queries RLS was introduced to filter.
@@ -602,7 +602,7 @@ It was rejected as primary for reasons that are specific and checkable:
    framework plausibly connects as the owner. The policies would exist, look
    correct, and enforce nothing.
 5. **`current_setting` has a fail-open trap.** The one-argument form raises
-   `unrecognized configuration parameter` for an unset custom GUC — loud, and
+   `unrecognized configuration parameter` for an unset custom GUC -- loud, and
    fail-closed. The two-argument `missing_ok` form returns `NULL`, which invites
    the natural-looking policy `WHERE current_setting('pgdesk.subject', true) IS NULL OR owner = ...`;
    with the GUC never set on reads, that returns every row of every table.
@@ -629,19 +629,19 @@ If a host wants RLS anyway, document this contract:
   removed in PostgreSQL 9.2, and any dotted name is an accepted placeholder.
 
 `WithSessionClaims` is **not** part of this design. If it is ever added, it must
-set GUCs only via `select set_config($1, $2, true)` with bound parameters —
+set GUCs only via `select set_config($1, $2, true)` with bound parameters --
 `SET LOCAL x = $1` does not accept a bind, and concatenating a principal ID into
-a `SET` is an injection — and it must whitelist the GUC name to a namespaced
+a `SET` is an injection -- and it must whitelist the GUC name to a namespaced
 prefix, or a host will set `role` or `search_path` from a JWT claim.
 
-## Appendix B — Migration
+## Appendix B -- Migration
 
 - `AllowAll` is now a value (`pgdesk.AllowAll`), not a type: `WithAuthorizer(pgdesk.AllowAll)`.
 - Hosts implementing `Authorizer` collapse their seven methods into one `switch`,
   ending in `default: return Abstain, nil`.
 - `Resource.Authorize(az)` is **removed**. Express the same rule as an authorizer
-  in the admin-wide `DenyOverrides` set, switching on `attrs.Resource` — exactly
-  as `frozenLedger` does in §5.2.
+  in the admin-wide `DenyOverrides` set, switching on `attrs.Resource` -- exactly
+  as `frozenLedger` does in section 5.2.
 - `WithActionAllowed` is removed. The predicate moves into an `Authorizer` that
   denies `CapRunAction` for the action in question; `DenyOverrides` preserves the
   AND semantics it had.

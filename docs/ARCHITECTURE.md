@@ -1,4 +1,4 @@
-# pgdesk — Architecture Note
+# pgdesk -- Architecture Note
 
 `pgdesk` is a PostgreSQL-first, pgx-first admin framework for Go. It gives
 developers Django-Admin-like leverage for internal tools: schema introspection,
@@ -47,25 +47,25 @@ a concrete, testable guarantee, not an aspiration.
 - **Identifiers** (columns used for sort/filter/search/select) are never
   interpolated from the request. The request string is used *only as a map key*
   to resolve to a `*introspect.Column` whose `Name` came from `pg_catalog`.
-  Unresolved → `400`, fail closed.
+  Unresolved -> `400`, fail closed.
 - Resolved identifiers are quoted at emit time as defense-in-depth:
   `ident(s) = "\"" + strings.ReplaceAll(s, "\"", "\"\"") + "\""`.
 - **Filters** use a typed operator whitelist keyed on the column's Postgres type
   category. An operator token that does not resolve for that category is
   rejected. Enum values are validated against catalog enum labels.
 
-This subsystem carries the heaviest test suite (table-driven, every category ×
+This subsystem carries the heaviest test suite (table-driven, every category x
 operator, adversarial inputs) and is fuzzed (O7): the asserted invariant is
-"resolves to a catalog object or is rejected — never emitted as raw SQL."
+"resolves to a catalog object or is rejected -- never emitted as raw SQL."
 
 ## Request lifecycle
 
-1. Recover middleware (panic → logged 500, F5).
+1. Recover middleware (panic -> logged 500, F5).
 2. Security headers + per-request CSP nonce minted (F2, F3).
 3. Request ID resolved (honor `X-Request-Id` else generate) and a request-scoped
    `slog.Logger` bound into the context (O5).
 4. **Catalog snapshot loaded once** from the atomic pointer (D1) and carried in
-   context — a mid-request `Reload` cannot shift schema underneath the handler.
+   context -- a mid-request `Reload` cannot shift schema underneath the handler.
 5. Principal resolved from context (host middleware put it there); the matching
    `Authorizer` hook is called **before any query** (O6), fail-closed.
 6. Route resolves a `*Resource`, decodes the key type-aware (D6), builds

@@ -23,7 +23,7 @@ func TestDecodeSingleNumericKey(t *testing.T) {
 // numeric key is a 400 (ErrBadKey), never coerced to a string and never a 500.
 func TestDecodeKeyFailsClosed(t *testing.T) {
 	numeric := []*introspect.Column{{Name: "id", DataType: "int8", Category: introspect.CatNumeric}}
-	for _, bad := range []string{"'; drop", "abc", "1 OR 1=1", "", "0x10", "42; --", "１２３"} {
+	for _, bad := range []string{"'; drop", "abc", "1 OR 1=1", "", "0x10", "42; --", "\uff11\uff12\uff13"} {
 		if _, err := DecodeKey(numeric, bad); !errors.Is(err, ErrBadKey) {
 			t.Errorf("DecodeKey(numeric, %q) = %v, want ErrBadKey", bad, err)
 		}
@@ -99,7 +99,7 @@ func TestEncodeKeyArityChecks(t *testing.T) {
 
 // FuzzDecodeKey asserts the D6 fail-closed contract under arbitrary input: for
 // a numeric key column, DecodeKey must either return a typed numeric value or an
-// error — it must never panic and never return a raw string.
+// error -- it must never panic and never return a raw string.
 func FuzzDecodeKey(f *testing.F) {
 	pk := []*introspect.Column{{Name: "id", DataType: "int8", Category: introspect.CatNumeric}}
 	seeds := []string{"1", "42", "'; drop", "", "~abc", "-5", "9999999999999999999999", "1.5"}
@@ -109,14 +109,14 @@ func FuzzDecodeKey(f *testing.F) {
 	f.Fuzz(func(t *testing.T, seg string) {
 		vals, err := DecodeKey(pk, seg)
 		if err != nil {
-			return // rejected — the correct fail-closed outcome
+			return // rejected -- the correct fail-closed outcome
 		}
 		if len(vals) != 1 {
 			t.Fatalf("accepted %q but returned %d values", seg, len(vals))
 		}
 		switch vals[0].(type) {
 		case int64, float64:
-			// typed numeric value — acceptable
+			// typed numeric value -- acceptable
 		default:
 			t.Fatalf("numeric key %q decoded to non-numeric %T", seg, vals[0])
 		}

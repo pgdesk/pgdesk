@@ -59,22 +59,22 @@ func testAdmin(t *testing.T, cfgFns ...func(*config)) *Admin {
 func TestDBErrorClassification(t *testing.T) {
 	a := testAdmin(t)
 
-	// A deadline (also fired by pool saturation) → 503 with Retry-After (O2).
+	// A deadline (also fired by pool saturation) -> 503 with Retry-After (O2).
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/admin/users", nil)
 	a.dbError(rec, req, "list", context.DeadlineExceeded)
 	if rec.Code != http.StatusServiceUnavailable {
-		t.Fatalf("deadline → status %d, want 503", rec.Code)
+		t.Fatalf("deadline -> status %d, want 503", rec.Code)
 	}
 	if rec.Header().Get("Retry-After") == "" {
 		t.Error("503 should set Retry-After")
 	}
 
-	// Any other DB error → generic 500, no internal detail leaked (F5).
+	// Any other DB error -> generic 500, no internal detail leaked (F5).
 	rec = httptest.NewRecorder()
 	a.dbError(rec, req, "list", errors.New("relation \"secret_table\" does not exist"))
 	if rec.Code != http.StatusInternalServerError {
-		t.Fatalf("generic error → status %d, want 500", rec.Code)
+		t.Fatalf("generic error -> status %d, want 500", rec.Code)
 	}
 	if strings.Contains(rec.Body.String(), "secret_table") {
 		t.Fatal("500 page leaked internal error detail")
@@ -141,7 +141,7 @@ func TestBuildStateExplicitWinsOverAuto(t *testing.T) {
 
 func TestBuildStateUnknownColumnReturnsError(t *testing.T) {
 	// A resource referencing a column that doesn't exist is a configuration error
-	// returned by New (via buildState) — not a panic (the WithResource contract).
+	// returned by New (via buildState) -- not a panic (the WithResource contract).
 	a := testAdmin(t)
 	a.cfg.resources = []resourceReg{{name: "users", fn: func(r *Resource) {
 		r.ListDisplay("no_such_column")
@@ -152,7 +152,7 @@ func TestBuildStateUnknownColumnReturnsError(t *testing.T) {
 }
 
 func TestBuildStateWritableWithoutSecretFails(t *testing.T) {
-	// No signer + a writable auto-registered table → fail closed (D5).
+	// No signer + a writable auto-registered table -> fail closed (D5).
 	a := &Admin{cfg: defaultConfig()}
 	a.cfg.autoRegister = &autoRegisterConfig{excludeTables: map[string]bool{}, includeViews: map[string]bool{}}
 	if _, err := a.buildState(syntheticCatalog()); !errors.Is(err, ErrSecretRequired) {
@@ -193,12 +193,12 @@ func TestMapPgError(t *testing.T) {
 		return nil, false
 	}
 
-	// 23505 with a resolvable constraint → per-field "must be unique" (D7).
+	// 23505 with a resolvable constraint -> per-field "must be unique" (D7).
 	unique := &pgconn.PgError{Code: "23505", ConstraintName: "users_email_key"}
 	if me := mapPgError(unique, nil, uniq); me.fieldErrors["email"] != "must be unique" {
 		t.Errorf("23505 per-field mapping wrong: %+v", me)
 	}
-	// 23505 with an unknown constraint → form-level fallback.
+	// 23505 with an unknown constraint -> form-level fallback.
 	if me := mapPgError(&pgconn.PgError{Code: "23505", ConstraintName: "mystery"}, nil, uniq); me.formError == "" {
 		t.Errorf("23505 fallback should be a form error: %+v", me)
 	}
@@ -213,7 +213,7 @@ func TestMapPgError(t *testing.T) {
 		t.Errorf("constraint message override not applied: %+v", me)
 	}
 
-	// Non-Postgres error → generic form error, no internal detail leaked.
+	// Non-Postgres error -> generic form error, no internal detail leaked.
 	if me := mapPgError(errors.New("boom: schema secret"), nil, nil); me.formError == "" || strings.Contains(me.formError, "secret") {
 		t.Errorf("non-pg error should be generic: %+v", me)
 	}
@@ -252,10 +252,10 @@ func TestHumanize(t *testing.T) {
 func TestClampPageSize(t *testing.T) {
 	a := &Admin{cfg: defaultConfig()} // default 50, max 200
 	if got := a.clampPageSize(0); got != 50 {
-		t.Errorf("zero → default: got %d", got)
+		t.Errorf("zero -> default: got %d", got)
 	}
 	if got := a.clampPageSize(10_000); got != 200 {
-		t.Errorf("huge → max: got %d", got)
+		t.Errorf("huge -> max: got %d", got)
 	}
 	if got := a.clampPageSize(25); got != 25 {
 		t.Errorf("in-range unchanged: got %d", got)

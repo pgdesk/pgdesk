@@ -40,7 +40,7 @@ func WithAutoRegister(opts ...AutoRegisterOption) Option {
 	}
 }
 
-// ExcludeTables names tables that auto-registration must never expose — junction
+// ExcludeTables names tables that auto-registration must never expose -- junction
 // tables, audit logs, system/migration tables, or anything holding PII you do not
 // want surfaced (D2).
 func ExcludeTables(names ...string) AutoRegisterOption {

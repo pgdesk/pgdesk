@@ -11,7 +11,7 @@ import (
 )
 
 // editAction and createAction build the form POST targets (absolute, under the
-// base path — F4 keeps redirects derived from these safe).
+// base path -- F4 keeps redirects derived from these safe).
 func (a *Admin) editAction(res *Resource, key string) string {
 	return a.cfg.basePath + "/" + res.name + "/" + key + "/edit"
 }
@@ -257,7 +257,7 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 
 // execDeleteTx runs the DELETE and audit in one transaction (O4). The RETURNING
 // row is the before-snapshot. A 0-row delete means the row does not exist for this
-// principal — already gone, or outside their scope (O6) — and reports errNotFound
+// principal -- already gone, or outside their scope (O6) -- and reports errNotFound
 // rather than a success the operator did not get. The two are deliberately
 // indistinguishable so the response cannot be used to probe for rows.
 func (a *Admin) execDeleteTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any) error {

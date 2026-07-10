@@ -36,7 +36,7 @@ func TestBuildListParameterized(t *testing.T) {
 }
 
 // TestEmitFilterByOperator asserts each operator renders a parameterized clause
-// with a quoted catalog identifier — never a request string in the SQL (D3).
+// with a quoted catalog identifier -- never a request string in the SQL (D3).
 func TestEmitFilterByOperator(t *testing.T) {
 	tbl := testTable()
 	cases := []struct {

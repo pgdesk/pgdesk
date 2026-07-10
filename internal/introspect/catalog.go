@@ -115,7 +115,7 @@ type Table struct {
 	uniqueByName      map[string][]string
 }
 
-// setUniques stores unique constraints and builds the name→columns lookup. It is
+// setUniques stores unique constraints and builds the name->columns lookup. It is
 // called by the loader before the table is published; the table is immutable
 // thereafter.
 func (t *Table) setUniques(u []*UniqueConstraint) {

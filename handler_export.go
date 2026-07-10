@@ -11,7 +11,7 @@ import (
 
 // handleExport streams the current (filtered/sorted) list as CSV (F7). It runs
 // through the same authorizer (CapList), catalog identifier resolution (D3), and
-// bounded query as the HTML list — only the presentation differs. Row count is
+// bounded query as the HTML list -- only the presentation differs. Row count is
 // capped so an export can't force an unbounded scan (F6).
 func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))

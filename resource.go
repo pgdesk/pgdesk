@@ -33,7 +33,7 @@ type Resource struct {
 	pageSize     int
 
 	keyCols    []*introspect.Column // defaults to table.PrimaryKey; override via Key
-	versionCol *introspect.Column   // nil → xmin (O1)
+	versionCol *introspect.Column   // nil -> xmin (O1)
 
 	fields         map[string]*fieldConfig
 	constraintMsgs map[string]string
@@ -207,7 +207,7 @@ func (r *Resource) Use(mw ...Middleware) {
 // Action registers a row/bulk action. name must be URL-safe and unique on the
 // resource; label is shown in the action menu; fn runs against the selected rows
 // inside a transaction (O4). Registering an action requires the resource be
-// keyed (it operates on selected primary keys) — otherwise construction fails.
+// keyed (it operates on selected primary keys) -- otherwise construction fails.
 func (r *Resource) Action(name, label string, fn ActionFunc, opts ...ActionOption) {
 	if !isURLSafe(name) {
 		r.addErr(fmt.Errorf("action name %q must be url-safe (letters, digits, - or _)", name))

@@ -60,7 +60,7 @@ func (a *Admin) fieldLabel(res *Resource, c *introspect.Column) string {
 // buildFormFields turns columns + a row map into form fields, choosing widgets
 // from type and applying readonly/required/error state. attemptedValues, when
 // non-nil, overrides row values (used when re-rendering after a validation error
-// so the operator keeps their input). fieldErrs maps column → inline error.
+// so the operator keeps their input). fieldErrs maps column -> inline error.
 func (a *Admin) buildFormFields(res *Resource, cols []*introspect.Column, row map[string]any, fieldErrs map[string]string) []formField {
 	fields := make([]formField, 0, len(cols))
 	for _, c := range cols {
@@ -139,7 +139,7 @@ func formValueForColumn(r *http.Request, c *introspect.Column) any {
 	return raw
 }
 
-// scanOneRow reads at most one row into a column→value map, returning nil if the
+// scanOneRow reads at most one row into a column->value map, returning nil if the
 // result set is empty (used to detect the O1 0-rows conflict).
 func scanOneRow(rows pgx.Rows, cols []*introspect.Column) (map[string]any, error) {
 	if !rows.Next() {

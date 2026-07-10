@@ -540,7 +540,7 @@ func (a *Admin) runQuery(ctx context.Context, op, sql string, args []any) (pgx.R
 }
 
 // serverError logs full detail server-side (keyed by request ID) and renders a
-// generic 500 — internals never reach the browser (F5).
+// generic 500 -- internals never reach the browser (F5).
 func (a *Admin) serverError(w http.ResponseWriter, r *http.Request, stage string, err error) {
 	LoggerFromContext(r.Context()).Error("pgdesk: request failed",
 		"stage", stage, "error", err, "request_id", RequestIDFromContext(r.Context()))

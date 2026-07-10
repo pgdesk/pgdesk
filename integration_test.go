@@ -6,7 +6,7 @@
 //	go test -tags=integration -race ./...
 //
 // It exercises the real product against a real database: introspection of every
-// core type category, the list→detail→edit→save flow, the xmin lost-update
+// core type category, the list->detail->edit->save flow, the xmin lost-update
 // conflict (O1), type-aware fail-closed key decoding (D6), the SQLSTATE error
 // mapping (D7), and CSRF enforcement (D5). Nothing about Postgres is mocked.
 package pgdesk_test
@@ -271,7 +271,7 @@ func TestIntegrationDuplicateKeyMapped(t *testing.T) {
 	admin, _ := setup(t)
 	token, version := editToken(t, admin, "1")
 
-	// Set row 1's email to row 2's → 23505 unique_violation mapped to a field
+	// Set row 1's email to row 2's -> 23505 unique_violation mapped to a field
 	// error, re-rendered form (D7), status 422.
 	form := url.Values{}
 	form.Set("email", "alan@example.com")
@@ -460,7 +460,7 @@ func TestIntegrationPageSizeClampedAndPaged(t *testing.T) {
 	admin, _ := setup(t)
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1", nil))
 	body := rec.Body.String()
-	// Two users seeded; page size 1 → a Next link must appear.
+	// Two users seeded; page size 1 -> a Next link must appear.
 	if !strings.Contains(body, "Next") {
 		t.Fatalf("expected pagination Next link at page_size=1:\n%s", body)
 	}
@@ -478,7 +478,7 @@ func TestIntegrationFKLabels(t *testing.T) {
 		t.Fatalf("orders list status = %d\n%s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	// user_id 1 → ada's label (email, the first text column) linked to her detail.
+	// user_id 1 -> ada's label (email, the first text column) linked to her detail.
 	if !strings.Contains(body, `href="/admin/it_users/1"`) {
 		t.Fatalf("FK cell should link to referenced detail:\n%s", body)
 	}
@@ -512,7 +512,7 @@ func TestIntegrationCreate(t *testing.T) {
 	form.Set("email", "grace@example.com")
 	form.Set("full_name", "Grace Hopper")
 	form.Set("status", "active")
-	// id/created_at are readonly/generated → omitted; DB defaults apply.
+	// id/created_at are readonly/generated -> omitted; DB defaults apply.
 	rec := postForm(admin, "/admin/it_users/new", token, form)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("create status = %d, want 303\n%s", rec.Code, rec.Body.String())
@@ -652,7 +652,7 @@ func TestIntegrationFlashAfterMutation(t *testing.T) {
 
 func TestIntegrationBulkAction(t *testing.T) {
 	admin, pool := setup(t)
-	// Both seeded users → pending for alan, active for ada; activate both.
+	// Both seeded users -> pending for alan, active for ada; activate both.
 	token, _ := editToken(t, admin, "1")
 
 	form := url.Values{}

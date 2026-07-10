@@ -24,7 +24,7 @@ func StaticFuncs() template.FuncMap {
 // CellValue renders a scanned value for display, upgrading booleans to a status
 // pill (a common enterprise-admin affordance). It is F1-safe: the boolean path
 // emits only fixed, developer-authored markup, and every other value is
-// HTML-escaped before being returned as template.HTML — no dynamic/DB content is
+// HTML-escaped before being returned as template.HTML -- no dynamic/DB content is
 // ever emitted unescaped.
 func CellValue(v any) template.HTML {
 	if b, ok := v.(bool); ok {
@@ -65,13 +65,13 @@ var scriptSafeReplacer = strings.NewReplacer(
 	"<", "\\u003c",
 	">", "\\u003e",
 	"&", "\\u0026",
-	" ", "\\u2028", // line separator: breaks JS string literals otherwise
-	" ", "\\u2029", // paragraph separator: same
+	"\u2028", "\\u2028", // line separator: breaks JS string literals otherwise
+	"\u2029", "\\u2029", // paragraph separator: same
 )
 
 // SafeJSON marshals v and escapes the characters that could break out of a
 // <script> context. The result is intended to be embedded inside a nonce'd
-// <script> block (e.g. a JSON-editor widget's initial value) — preventing the
+// <script> block (e.g. a JSON-editor widget's initial value) -- preventing the
 // classic </script> breakout admin XSS (F1).
 func SafeJSON(v any) template.JS {
 	b, err := json.Marshal(v)

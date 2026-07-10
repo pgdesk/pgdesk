@@ -21,7 +21,7 @@
     {{- if .SearchEnabled }}
     <div class="pg-filter">
       <label for="pg-f-q">Search</label>
-      <input id="pg-f-q" type="search" name="q" value="{{ .Query }}" placeholder="Search…">
+      <input id="pg-f-q" type="search" name="q" value="{{ .Query }}" placeholder="Search...">
     </div>
     {{- end }}
     {{- range .InlineFilters }}{{ template "filterControl" . }}{{ end }}
@@ -43,7 +43,7 @@
     {{- range .ActiveChips }}
     <a class="pg-chip" href="{{ .RemoveURL }}">
       <span class="pg-chip-key">{{ .Label }}:</span>&nbsp;{{ .Value }}
-      <span class="pg-chip-x" aria-hidden="true">×</span><span class="pg-sr-only">Remove {{ .Label }} filter</span>
+      <span class="pg-chip-x" aria-hidden="true">&#215;</span><span class="pg-sr-only">Remove {{ .Label }} filter</span>
     </a>
     {{- end }}
   </div>
@@ -56,7 +56,7 @@
   {{ csrfField }}
   <div class="pg-action-bar">
     <select name="_action" aria-label="Bulk action">
-      <option value="">Choose action…</option>
+      <option value="">Choose action...</option>
       {{- range .Actions }}
       <option value="{{ .Name }}" data-confirm="{{ .Confirm }}">{{ .Label }}</option>
       {{- end }}
@@ -72,7 +72,7 @@
       {{- range .Headers }}
       <th aria-sort="{{ if .Active }}{{ if .Desc }}descending{{ else }}ascending{{ end }}{{ else }}none{{ end }}">
         <a class="pg-sort{{ if .Active }} pg-sort-active{{ end }}" href="{{ .URL }}">
-          {{ .Label }}{{ if .Active }}{{ if .Desc }} ▾{{ else }} ▴{{ end }}{{ end }}
+          {{ .Label }}{{ if .Active }}{{ if .Desc }} &#9662;{{ else }} &#9652;{{ end }}{{ end }}
         </a>
       </th>
       {{- end }}
@@ -100,9 +100,9 @@
 {{- if .HasActions }}</form>{{ end }}
 
 <nav class="pg-pager" aria-label="Pagination">
-  {{- if .HasPrev }}<a class="pg-page-prev" href="{{ .PrevURL }}">← Previous</a>{{ end }}
+  {{- if .HasPrev }}<a class="pg-page-prev" href="{{ .PrevURL }}">&larr; Previous</a>{{ end }}
   <span class="pg-page-info">Page {{ .Page }}</span>
-  {{- if .HasNext }}<a class="pg-page-next" href="{{ .NextURL }}">Next →</a>{{ end }}
+  {{- if .HasNext }}<a class="pg-page-next" href="{{ .NextURL }}">Next &rarr;</a>{{ end }}
 </nav>
 {{ template "foot" .Base }}
 {{- end -}}

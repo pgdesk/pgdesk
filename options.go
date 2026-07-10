@@ -49,7 +49,7 @@ func defaultConfig() *config {
 		queryTimeout:    15 * time.Second,
 		logger:          slog.New(slog.DiscardHandler),
 		metrics:         nopMetrics{},
-		authorizer:      nil, // nil → fail-closed (all capabilities denied) until set
+		authorizer:      nil, // nil -> fail-closed (all capabilities denied) until set
 		defaultPageSize: 50,
 		maxPageSize:     200,
 		maxBodyBytes:    1 << 20, // 1 MiB

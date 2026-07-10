@@ -64,7 +64,7 @@ func TestFlashNoopWithoutSigner(t *testing.T) {
 }
 
 func TestFlashMessageEscapedInRender(t *testing.T) {
-	// A flash carrying markup must render escaped (F1) — flashes are untrusted
+	// A flash carrying markup must render escaped (F1) -- flashes are untrusted
 	// template data regardless of storage.
 	a := testAdmin(t)
 	rec := httptest.NewRecorder()

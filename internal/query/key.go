@@ -15,12 +15,12 @@ import (
 // Key encoding/decoding (D6). A resource's key is an ordered []*Column that may
 // be empty. Detail/edit/delete only exist for keyed resources.
 //
-//   - Single-column key  → readable segment: url.PathEscape(fmt.Sprint(v)).
-//   - Composite key       → opaque segment: "~" + base64url(json([]string vals)).
+//   - Single-column key  -> readable segment: url.PathEscape(fmt.Sprint(v)).
+//   - Composite key       -> opaque segment: "~" + base64url(json([]string vals)).
 //
 // Decoding is type-aware and fail-closed: each segment is parsed into its
 // column's Go type. A parse failure is a 400 (ErrBadKey), never a 500 and never
-// a fallback to string comparison — so "'; drop" fails to decode as an integer
+// a fallback to string comparison -- so "'; drop" fails to decode as an integer
 // key and never reaches the query builder.
 var (
 	// ErrBadKey indicates a URL key segment that could not be decoded into the

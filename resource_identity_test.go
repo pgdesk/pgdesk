@@ -17,8 +17,8 @@ func keyedTable(schema, name string, fks ...*introspect.ForeignKey) *introspect.
 		[]*introspect.Column{id}, []*introspect.Column{id}, fks)
 }
 
-// multiSchemaCatalog holds a users table in BOTH public and billing — the
-// shadowing case — plus a billing-only invoices table.
+// multiSchemaCatalog holds a users table in BOTH public and billing -- the
+// shadowing case -- plus a billing-only invoices table.
 func multiSchemaCatalog() *introspect.Catalog {
 	return introspect.NewCatalog([]string{"public", "billing"}, []*introspect.Table{
 		keyedTable("public", "users"),

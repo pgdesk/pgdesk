@@ -8,13 +8,13 @@ import (
 
 // Keys is the set of primary keys selected for a bulk action. pgdesk decodes them
 // from the request, scopes them against the principal, and confirms every one
-// names a reachable row before the action runs (O6) — so an ActionFunc receives
+// names a reachable row before the action runs (O6) -- so an ActionFunc receives
 // only keys it is allowed to touch.
 //
 // Because pgdesk introspects the resource's key columns, Keys hands them back in a
 // concretely-typed slice ready to bind to "= ANY($n)": Int64s for an integer key,
 // Strings for a text, uuid, or enum key. This is both friendlier than a raw
-// [][]any and safer — a []any bound as a query argument fails to encode when pgx
+// [][]any and safer -- a []any bound as a query argument fails to encode when pgx
 // runs without a describe step (behind a transaction-pooling PgBouncer), whereas
 // a concrete []int64 or []string encodes in every mode.
 //
@@ -29,7 +29,7 @@ func (k Keys) Len() int { return len(k.vals) }
 
 // Int64s returns the selected keys as an []int64 ready to bind to "= ANY($n)". It
 // errors unless the resource has a single integer key column, and unless every
-// decoded value is an integer — so a wrong assumption about the key type surfaces
+// decoded value is an integer -- so a wrong assumption about the key type surfaces
 // as a clear error rather than a panic or a malformed query.
 func (k Keys) Int64s() ([]int64, error) {
 	col, err := k.single("Int64s", introspect.CatNumeric)
@@ -48,8 +48,8 @@ func (k Keys) Int64s() ([]int64, error) {
 }
 
 // Strings returns the selected keys as a []string ready to bind to "= ANY($n)".
-// It serves a text, uuid, or enum key column — pgdesk decodes all three to a
-// string — and errors on any other key shape.
+// It serves a text, uuid, or enum key column -- pgdesk decodes all three to a
+// string -- and errors on any other key shape.
 func (k Keys) Strings() ([]string, error) {
 	col, err := k.single("Strings", introspect.CatText, introspect.CatUUID, introspect.CatEnum)
 	if err != nil {

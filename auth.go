@@ -153,7 +153,7 @@ func (set denyOverrides) Authorize(ctx context.Context, attrs Attributes) (Decis
 }
 
 // Scope implements Scoper by concatenating the constraints of every member that
-// is itself a Scoper. Constraints are ANDed, so — as with Deny — adding an
+// is itself a Scoper. Constraints are ANDed, so -- as with Deny -- adding an
 // authorizer can only narrow the rows a principal can reach.
 func (set denyOverrides) Scope(ctx context.Context, attrs Attributes) ([]Constraint, error) {
 	var out []Constraint
@@ -173,7 +173,7 @@ func (set denyOverrides) Scope(ctx context.Context, attrs Attributes) ([]Constra
 
 // permitted reports whether az allows attrs. This is the single reduction from
 // Decision to bool in the whole package. It is written "dec == Allow" and never
-// "dec != Deny": every path that is not an explicit Allow denies — a nil
+// "dec != Deny": every path that is not an explicit Allow denies -- a nil
 // authorizer, a nil principal, an Abstain, or an error.
 func permitted(ctx context.Context, az Authorizer, attrs Attributes) (bool, error) {
 	if az == nil || attrs.Principal == nil {

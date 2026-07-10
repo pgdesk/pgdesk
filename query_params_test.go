@@ -66,7 +66,7 @@ func TestParseListFailsClosed(t *testing.T) {
 		"bad value type":            "f_created_at__gt=not-a-date",
 		"enum value not a label":    "f_status=deleted",
 		"sort column not displayed": "sort=password",
-		"injection in filter":       "f_status=active' OR 1=1--", // not a valid enum label → rejected
+		"injection in filter":       "f_status=active' OR 1=1--", // not a valid enum label -> rejected
 	}
 	for name, q := range cases {
 		t.Run(name, func(t *testing.T) {

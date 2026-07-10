@@ -24,8 +24,8 @@ func TestSafeJSONEscapesScriptBreakout(t *testing.T) {
 }
 
 func TestSafeJSONEscapesLineSeparators(t *testing.T) {
-	out := string(SafeJSON("a b c"))
-	if strings.ContainsRune(out, ' ') || strings.ContainsRune(out, ' ') {
+	out := string(SafeJSON("a\u2028b\u2029c"))
+	if strings.ContainsRune(out, '\u2028') || strings.ContainsRune(out, '\u2029') {
 		t.Fatalf("SafeJSON left raw line/paragraph separators: %q", out)
 	}
 	if !strings.Contains(out, `\u2028`) || !strings.Contains(out, `\u2029`) {
@@ -41,10 +41,10 @@ func TestFormatValueNil(t *testing.T) {
 
 func TestCellValue(t *testing.T) {
 	if got := string(CellValue(true)); !strings.Contains(got, "pg-badge-ok") {
-		t.Errorf("true → %q, want an ok badge", got)
+		t.Errorf("true -> %q, want an ok badge", got)
 	}
 	if got := string(CellValue(false)); !strings.Contains(got, "pg-badge-off") {
-		t.Errorf("false → %q, want an off badge", got)
+		t.Errorf("false -> %q, want an off badge", got)
 	}
 	// Non-bool values are HTML-escaped (F1): DB/request content is never raw markup.
 	if got := string(CellValue(`<script>alert(1)</script>`)); strings.Contains(got, "<script>") {
@@ -99,7 +99,7 @@ func TestRenderEscapesDynamicContent(t *testing.T) {
 
 func TestRenderPageBuffersOnError(t *testing.T) {
 	fsys := fstest.MapFS{
-		// References a nonexistent nested template → execution error.
+		// References a nonexistent nested template -> execution error.
 		"bad.html": &fstest.MapFile{Data: []byte(`{{ define "bad" }}{{ template "missing" . }}{{ end }}`)},
 	}
 	r, err := New(fsys, StaticFuncs())

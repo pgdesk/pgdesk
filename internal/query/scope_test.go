@@ -56,7 +56,7 @@ func TestScopeSharesPlaceholderNumbering(t *testing.T) {
 }
 
 // ExistsRow answers "is this row reachable at all", so it carries the scope but
-// never a version predicate — that is the whole point of the 409-vs-404 probe.
+// never a version predicate -- that is the whole point of the 409-vs-404 probe.
 func TestExistsRowHasScopeButNoVersion(t *testing.T) {
 	tbl := testTable()
 	sql, args, err := ExistsRow(tbl, tbl.PrimaryKey, []any{int64(1)}, []Filter{orgFilter(tbl, int64(2))})

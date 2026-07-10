@@ -336,7 +336,7 @@ func loadForeignKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[
 
 // loadUniqueConstraints reads unique indexes (which back both unique constraints
 // and standalone unique indexes). PostgreSQL reports the index/constraint name in
-// a 23505 error, so this name→columns map lets pgdesk attach the violation to the
+// a 23505 error, so this name->columns map lets pgdesk attach the violation to the
 // specific field(s) (D7). Primary keys are excluded (handled separately).
 func loadUniqueConstraints(ctx context.Context, tx pgx.Tx, schemas []string, rels map[string]*relBuild) error {
 	const q = `

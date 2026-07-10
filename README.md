@@ -1,7 +1,7 @@
 # pgdesk
 
 **A PostgreSQL-first admin framework for Go.** Django-Admin-like leverage for
-internal tools and operations dashboards — schema introspection, declarative
+internal tools and operations dashboards -- schema introspection, declarative
 resource config in Go, a server-rendered HTML-first UI, and fail-closed safe
 defaults for internal production use.
 
@@ -29,7 +29,7 @@ admin, err := pgdesk.New(pool,
     }),
 )
 if err != nil {
-    log.Fatal(err) // includes resource misconfiguration — New never panics
+    log.Fatal(err) // includes resource misconfiguration -- New never panics
 }
 defer admin.Close() // orderly teardown (O3); does NOT close the pool
 
@@ -56,13 +56,13 @@ pgdesk.WithResource("users", func(r *pgdesk.Resource) {
         },
         pgdesk.WithConfirm("Suspend the selected users?"),
     )
-})  // pass to pgdesk.New(pool, …)
+})  // pass to pgdesk.New(pool, ...)
 ```
 
 Every list has a **CSV export** link (`/admin/users/export.csv`) that streams the
 current filtered/sorted view through the same authorizer and query builder.
 
-For a **durable audit trail**, implement `TxAuditLogger` — it writes inside the
+For a **durable audit trail**, implement `TxAuditLogger` -- it writes inside the
 mutation's transaction, so a mutation cannot commit without its audit record (O4):
 
 ```go
@@ -77,11 +77,11 @@ func (auditLogger) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEven
 ```
 
 See [examples/basic](examples/basic) for a minimal, single-file runnable app on
-`net/http` — connect a pool, declare one resource, mount, serve.
+`net/http` -- connect a pool, declare one resource, mount, serve.
 
 ### Auto-registration (opt-in convenience)
 
-Introspect everything, expose nothing until named — or opt into convenience
+Introspect everything, expose nothing until named -- or opt into convenience
 auto-registration, which exposes every keyed table (skipping keyless tables and,
 by default, views), honors an exclude list, and **logs the full exposed set at
 startup** so you can immediately spot a leaked PII or system table:
@@ -120,12 +120,12 @@ lost updates, resource exhaustion, and audit gaps.
 It intentionally does **not** defend against a malicious authenticated operator
 (they have legitimate DB access by design), and it **delegates** TLS termination,
 network isolation, rate limiting, WAF, and session/auth mechanics to the host
-application and infrastructure — providing clean contracts (`Principal`,
+application and infrastructure -- providing clean contracts (`Principal`,
 `Middleware`, `Authorizer`, `Metrics`) for each. **Do not deploy it raw to the
 public internet expecting more than it claims.**
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full set of locked
-decisions (D1–D7, F1–F8, O1–O8).
+decisions (D1-D7, F1-F8, O1-O8).
 
 ## API stability promise (SemVer)
 
@@ -154,4 +154,4 @@ and is tested.
 
 ## License
 
-MIT — see [LICENSE](LICENSE).
+MIT -- see [LICENSE](LICENSE).

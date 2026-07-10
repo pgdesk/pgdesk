@@ -2,7 +2,7 @@
 // gives internal tools Django-Admin-like leverage: schema introspection,
 // declarative resource configuration, a server-rendered HTML UI, and fail-closed
 // safe defaults. See docs/ARCHITECTURE.md for the locked design decisions
-// (D1–D7, F1–F8, O1–O8) that this package implements.
+// (D1-D7, F1-F8, O1-O8) that this package implements.
 package pgdesk
 
 import (
@@ -53,8 +53,8 @@ type Admin struct {
 
 // New constructs an Admin from a live pool. It introspects the schema once (D1)
 // and builds every resource declared via WithResource / WithAutoRegister against
-// that catalog. Any failure — introspection, template parsing, or a resource
-// referencing an unknown table or column — returns an error and no
+// that catalog. Any failure -- introspection, template parsing, or a resource
+// referencing an unknown table or column -- returns an error and no
 // half-initialized Admin; New never panics on configuration.
 //
 // New uses context.Background bounded by the configured query timeout for the
@@ -113,7 +113,7 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 	// Build the resource set against the catalog. Resources are declared as
 	// WithResource / WithAutoRegister options, so any misconfiguration (unknown
 	// table or column, or a mutating resource with no CSRF key) is returned here
-	// as an error — New never panics on configuration.
+	// as an error -- New never panics on configuration.
 	st, err := a.buildState(cat)
 	if err != nil {
 		return nil, fmt.Errorf("pgdesk: configuring resources: %w", err)
@@ -139,7 +139,7 @@ func startupTimeout(query time.Duration) time.Duration {
 
 // buildState builds every declared resource (WithResource options first, then,
 // if enabled, auto-registered tables) against cat and returns a fresh immutable
-// adminState. It runs at construction and at Reload — so Reload rebuilds
+// adminState. It runs at construction and at Reload -- so Reload rebuilds
 // resources against the new catalog rather than leaving them bound to a stale one
 // (D1). Any configuration error aborts the whole build (fail-closed, D2).
 func (a *Admin) buildState(cat *introspect.Catalog) (*adminState, error) {
@@ -206,8 +206,8 @@ func (a *Admin) buildResourceFrom(tbl *introspect.Table, name string, fn func(*R
 // resolveTable finds a table by name across the configured schemas.
 //
 // A name matching a table in more than one schema is ambiguous and fails the
-// build (D2). Returning the first match would silently bind the resource — and
-// every policy written against its name — to whichever schema happened to be
+// build (D2). Returning the first match would silently bind the resource -- and
+// every policy written against its name -- to whichever schema happened to be
 // listed first, leaving the other table permanently unreachable.
 func resolveTable(cat *introspect.Catalog, schemas []string, name string) (*introspect.Table, error) {
 	var found *introspect.Table
@@ -247,7 +247,7 @@ func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 }
 
 // Reload rebuilds the catalog and atomically swaps it in (D1). On failure it
-// keeps the last-known-good catalog live and returns the error — degrade to
+// keeps the last-known-good catalog live and returns the error -- degrade to
 // stale, never to broken. Wire it to SIGHUP or an authenticated route; it is not
 // a magic built-in endpoint.
 func (a *Admin) Reload(ctx context.Context) error {
@@ -295,7 +295,7 @@ func (a *Admin) Healthy(ctx context.Context) error {
 }
 
 // Close marks the admin closed for orderly teardown (O3). It does NOT close the
-// pool — the host owns the pool's lifecycle. After Close, request handling and
+// pool -- the host owns the pool's lifecycle. After Close, request handling and
 // Reload return ErrClosed.
 func (a *Admin) Close() error {
 	a.closed.Store(true)

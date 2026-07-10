@@ -8,9 +8,9 @@ import (
 
 func TestDateRangeLabel(t *testing.T) {
 	cases := []struct{ from, to, want string }{
-		{"2026-01-01", "2026-02-01", "2026-01-01 → 2026-02-01"},
-		{"2026-01-01", "", "≥ 2026-01-01"},
-		{"", "2026-02-01", "≤ 2026-02-01"},
+		{"2026-01-01", "2026-02-01", "2026-01-01 -> 2026-02-01"},
+		{"2026-01-01", "", ">= 2026-01-01"},
+		{"", "2026-02-01", "<= 2026-02-01"},
 	}
 	for _, c := range cases {
 		if got := dateRangeLabel(c.from, c.to); got != c.want {
@@ -76,7 +76,7 @@ func TestFilterChip(t *testing.T) {
 		Label: "Created", Kind: "daterange",
 		ParamKey: "f_created__gt", ParamKeyTo: "f_created__lt", Value: "2026-01-01",
 	})
-	if !ok || chip.Value != "≥ 2026-01-01" {
+	if !ok || chip.Value != ">= 2026-01-01" {
 		t.Errorf("daterange chip = %+v, ok=%v", chip, ok)
 	}
 }

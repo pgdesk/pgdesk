@@ -146,7 +146,7 @@ type formField struct {
 type formView struct {
 	Base      baseView
 	Resource  resourceMeta
-	Action    string // form POST target (…/{key}/edit or …/new)
+	Action    string // form POST target (.../{key}/edit or .../new)
 	IsCreate  bool
 	Key       string
 	Version   string

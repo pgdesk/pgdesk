@@ -119,7 +119,7 @@ func (s scopeAZ) Scope(context.Context, Attributes) ([]Constraint, error) {
 }
 
 // A Scope error from any member must propagate, not be swallowed into an empty
-// scope — an empty scope widens access.
+// scope -- an empty scope widens access.
 func TestDenyOverridesScopePropagatesError(t *testing.T) {
 	failing := scopeErrAZ{}
 	set := DenyOverrides(fixed(Allow), failing, scopeAZ{[]Constraint{Eq("org_id", 1)}}).(Scoper)
@@ -134,7 +134,7 @@ func (scopeErrAZ) Authorize(context.Context, Attributes) (Decision, error) { ret
 func (scopeErrAZ) Scope(context.Context, Attributes) ([]Constraint, error) { return nil, errBoom }
 
 // A DenyOverrides set with no scoping members still satisfies Scoper (the method
-// exists), but returns an empty scope — the always-a-Scoper assertion is harmless
+// exists), but returns an empty scope -- the always-a-Scoper assertion is harmless
 // because an empty scope restricts nothing that a real member would not.
 func TestDenyOverridesScopeEmptyWhenNoneScope(t *testing.T) {
 	set := DenyOverrides(fixed(Allow), fixed(Deny))
@@ -187,7 +187,7 @@ func scopeRes() *Resource {
 
 // A constraint pgdesk cannot emit denies the request. It is never dropped:
 // dropping it would widen access. Malformed constraints (bad operator, wrong
-// value count) are now unconstructible — Eq/Ne/In are the only way in — so the
+// value count) are now unconstructible -- Eq/Ne/In are the only way in -- so the
 // remaining failure modes are an unknown column and an operator the column's type
 // category forbids.
 func TestResolveConstraintsFailsClosed(t *testing.T) {

@@ -32,7 +32,7 @@ func TestKeysInt64s(t *testing.T) {
 	if len(ids) != 3 || ids[0] != 1 || ids[2] != 3 {
 		t.Errorf("Int64s = %v", ids)
 	}
-	// The result is a concrete []int64 — the whole point, since a []any fails to
+	// The result is a concrete []int64 -- the whole point, since a []any fails to
 	// encode under pgx's PgBouncer-compatible modes.
 	if _, ok := any(ids).([]int64); !ok {
 		t.Error("Int64s must return a concrete []int64")

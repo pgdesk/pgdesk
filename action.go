@@ -13,7 +13,7 @@ import (
 // operator as a flash; returning an error rolls the whole action back and shows
 // the error.
 //
-// Because pgdesk is pgx-first, actions receive the live pgx.Tx directly — run
+// Because pgdesk is pgx-first, actions receive the live pgx.Tx directly -- run
 // whatever parameterized statements the action needs on it. The transaction is
 // committed only if ActionFunc returns nil.
 type ActionFunc func(ctx context.Context, tx pgx.Tx, keys Keys) (message string, err error)

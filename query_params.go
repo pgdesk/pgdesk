@@ -27,7 +27,7 @@ type listRequest struct {
 	page     int
 	pageSize int
 	q        string            // raw search term (for the search box)
-	rawFltr  map[string]string // filter param key → raw value, for form repopulation
+	rawFltr  map[string]string // filter param key -> raw value, for form repopulation
 }
 
 // parseListRequest resolves and validates all list parameters. Filter columns

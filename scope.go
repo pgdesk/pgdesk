@@ -9,7 +9,7 @@ import (
 )
 
 // Constraint is one predicate ANDed into every statement pgdesk issues for a
-// resource. Build one with Eq, Ne, or In — a Constraint cannot be constructed any
+// resource. Build one with Eq, Ne, or In -- a Constraint cannot be constructed any
 // other way, so it is always well-formed.
 //
 // The column is resolved against the live catalog snapshot and emitted as a
@@ -31,7 +31,7 @@ func Eq(column string, value any) Constraint {
 }
 
 // Ne constrains a resource to rows whose column differs from value. It follows
-// SQL semantics, so a row whose column IS NULL does not match — on a nullable
+// SQL semantics, so a row whose column IS NULL does not match -- on a nullable
 // column that narrows the visible set, which fails in the safe direction.
 func Ne(column string, value any) Constraint {
 	return Constraint{column: column, op: query.OpNe, values: []any{value}}
@@ -46,13 +46,13 @@ func In(column string, values ...any) Constraint {
 // Scoper narrows the set of rows a principal may reach. It is an optional
 // interface: when an Authorizer also implements Scoper, pgdesk ANDs the returned
 // constraints into the WHERE clause of every statement it issues for that
-// resource — list, export, detail, edit form, update, delete, and a bulk action's
+// resource -- list, export, detail, edit form, update, delete, and a bulk action's
 // key check. For a rule that only narrows rows and decides nothing, wrap a
 // function in ScopeOnly.
 //
 // Scope answers "which rows exist for me"; Authorize answers "may I". Keeping
-// them apart is what makes list pagination correct — the constraint is in the
-// query, so LIMIT applies after filtering — and what makes a row-level rule
+// them apart is what makes list pagination correct -- the constraint is in the
+// query, so LIMIT applies after filtering -- and what makes a row-level rule
 // atomic: the predicate rides in the mutation's own WHERE clause, leaving no
 // window between the check and the write.
 //

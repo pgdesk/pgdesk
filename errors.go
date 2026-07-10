@@ -3,17 +3,17 @@ package pgdesk
 import "errors"
 
 // Sentinel errors returned by construction and configuration. Request-path
-// errors are handled internally and never leak to the browser (F5); these are
-// for the host wiring pgdesk up.
+// errors are handled internally and never leak to the browser; these are for
+// the host wiring pgdesk up.
 var (
 	// ErrNoPool is returned by New when the pool is nil.
 	ErrNoPool = errors.New("pgdesk: a non-nil *pgxpool.Pool is required")
 
 	// ErrSecretRequired is returned by New when mutating routes are possible but
-	// no signing key was configured. pgdesk never silently runs without CSRF (D5).
+	// no signing key was configured. pgdesk never silently runs without CSRF.
 	ErrSecretRequired = errors.New("pgdesk: WithSecretKey is required when mutations are enabled")
 
-	// ErrUnknownColumn is returned by resource setters (ListDisplay, Filters, …)
+	// ErrUnknownColumn is returned by resource setters (ListDisplay, Filters, ...)
 	// when a configured column name does not exist in the introspected table. It
 	// surfaces configuration mistakes at New() time, fail-closed (D2).
 	ErrUnknownColumn = errors.New("pgdesk: column does not exist on table")

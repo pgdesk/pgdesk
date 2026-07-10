@@ -21,7 +21,7 @@ func FuzzResolveColumn(f *testing.F) {
 		"id", "email", "status", "prefs", "created_at", "external_id",
 		// Injection / evasion payloads (must all be rejected, never emitted).
 		"id; drop table users", `"; drop`, "email OR 1=1", "prefs->>'x'",
-		"", "*", "count(*)", "EMAIL", " email", "email ", "тест", "e’", "id::text",
+		"", "*", "count(*)", "EMAIL", " email", "email ", "\u0442\u0435\u0441\u0442", "e\u2019", "id::text",
 		`email"`, `email";`, "email--", "email/*c*/", "email\x00", "email\n",
 		"1=1", "email,id", "(select 1)", "email\tstatus", "email` `",
 		"pg_sleep(10)", "email::int", "0x41", "\\x41", "email|id",

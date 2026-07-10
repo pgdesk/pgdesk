@@ -77,7 +77,7 @@ func SelectRow(t *introspect.Table, cols, keyCols []*introspect.Column, keyVals 
 	return b.String(), args.Values(), nil
 }
 
-// ExistsRow builds "SELECT 1 FROM t WHERE key ... [AND scope]" — the probe that
+// ExistsRow builds "SELECT 1 FROM t WHERE key ... [AND scope]" -- the probe that
 // tells an update or delete affecting zero rows apart from one the principal may
 // not reach. It carries no version predicate on purpose: with the version guard
 // removed, a row that still does not appear is out of scope (404), and a row that
@@ -99,7 +99,7 @@ func ExistsRow(t *introspect.Table, keyCols []*introspect.Column, keyVals []any,
 	return b.String(), args.Values(), nil
 }
 
-// CountRowsInScope builds "SELECT count(*) FROM t WHERE (key₁ OR key₂ …) [AND
+// CountRowsInScope builds "SELECT count(*) FROM t WHERE (key1 OR key2 ...) [AND
 // scope]" for a bulk action's selected keys.
 //
 // A bulk action runs host-authored SQL that pgdesk cannot rewrite, so the keys
@@ -170,7 +170,7 @@ func CountRowsInScope(t *introspect.Table, keyCols []*introspect.Column, keys []
 
 // UpdateRow builds an optimistic-concurrency UPDATE guarded by the version token
 // (O1). setCols/setVals are the resolved columns and typed values to write;
-// returning are the columns to read back with RETURNING (D7 — supplies
+// returning are the columns to read back with RETURNING (D7 -- supplies
 // generated defaults without a read-after-write). keyVals match t.PrimaryKey.
 //
 // scope holds the principal's row constraints (O6), ANDed into the WHERE of the

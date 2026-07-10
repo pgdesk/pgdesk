@@ -29,8 +29,8 @@ var ErrOperatorNotAllowed = errors.New("pgdesk/query: operator not allowed for c
 
 // allowedByCategory is the authoritative operator whitelist. isnull is universal
 // (every nullable-capable column supports a null test). The table mirrors the
-// locked D3 spec: text → eq/ilike/in/isnull; timestamp → eq/lt/gt/between/isnull;
-// bool → eq/isnull; enum → eq/in/isnull; with numeric/uuid/json filled in
+// locked D3 spec: text -> eq/ilike/in/isnull; timestamp -> eq/lt/gt/between/isnull;
+// bool -> eq/isnull; enum -> eq/in/isnull; with numeric/uuid/json filled in
 // conservatively.
 var allowedByCategory = map[introspect.TypeCategory][]Operator{
 	introspect.CatText:      {OpEq, OpNe, OpILike, OpIn, OpIsNull},

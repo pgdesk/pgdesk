@@ -9,7 +9,7 @@ import (
 )
 
 // The D3 invariant under test everywhere in this file: a request-supplied
-// identifier either resolves to a catalog column or is rejected — it is never
+// identifier either resolves to a catalog column or is rejected -- it is never
 // emitted as raw SQL.
 
 func TestIdentQuoting(t *testing.T) {
@@ -75,8 +75,8 @@ func TestResolveColumnRejectsAdversarial(t *testing.T) {
 		"EMAIL",   // case-sensitive: not the real column
 		" email ", // whitespace padding
 		"email\x00",
-		"тест", // unicode
-		"e’",   // unicode quote
+		"\u0442\u0435\u0441\u0442", // unicode
+		"e\u2019",                  // unicode quote
 		"1",
 		"*",
 		"count(*)",
@@ -98,7 +98,7 @@ func TestResolveColumnNilTable(t *testing.T) {
 	}
 }
 
-// TestOperatorWhitelistByCategory is the table-driven category × operator matrix.
+// TestOperatorWhitelistByCategory is the table-driven category x operator matrix.
 func TestOperatorWhitelistByCategory(t *testing.T) {
 	all := []Operator{OpEq, OpILike, OpIn, OpLt, OpGt, OpBetween, OpIsNull}
 	want := map[introspect.TypeCategory]map[Operator]bool{

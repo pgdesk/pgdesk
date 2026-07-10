@@ -92,7 +92,7 @@ func (a *Admin) filterFields(res *Resource, lr *listRequest) []filterField {
 				Label: label, Kind: "text", ParamKey: "f_" + c.Name + "__ilike",
 				Value: lr.rawFltr["f_"+c.Name+"__ilike"],
 			})
-		default: // numeric, uuid → exact match
+		default: // numeric, uuid -> exact match
 			fields = append(fields, filterField{
 				Label: label, Kind: "text", ParamKey: "f_" + c.Name,
 				Value: lr.rawFltr["f_"+c.Name],
@@ -162,11 +162,11 @@ func (a *Admin) filterChip(r *http.Request, res *Resource, f filterField) (filte
 func dateRangeLabel(from, to string) string {
 	switch {
 	case from != "" && to != "":
-		return from + " → " + to
+		return from + " -> " + to
 	case from != "":
-		return "≥ " + from
+		return ">= " + from
 	default:
-		return "≤ " + to
+		return "<= " + to
 	}
 }
 
