@@ -67,6 +67,12 @@ func mapPgError(err error, constraintMsgs map[string]string, uniqueCols uniqueLo
 	case "22P02": // invalid_text_representation
 		return fieldOrForm(pg.ColumnName, "invalid value",
 			"One of the values has an invalid format.")
+	case "428C9": // generated_always -- wrote a value to a GENERATED ALWAYS column
+		// pgdesk excludes generated and identity-always columns from the editable
+		// set, so this should be unreachable; if a schema surprise lets one through,
+		// fail with an actionable message rather than a generic one.
+		return fieldOrForm(pg.ColumnName, "is managed by the database and cannot be set",
+			"A database-managed column cannot be set directly.")
 	default:
 		return mappedError{formError: "The change could not be saved. Please try again."}
 	}

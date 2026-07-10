@@ -156,7 +156,7 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 		Headers:         a.sortHeaders(r, res, display, lr),
 		Rows:            rowViews,
 		HasDetail:       res.hasKey() && a.can(r, CapView, res.name, ""),
-		CanCreate:       res.writable() && a.can(r, CapCreate, res.name, ""),
+		CanCreate:       res.canCreate() && a.can(r, CapCreate, res.name, ""),
 		Actions:         actions,
 		HasActions:      len(actions) > 0,
 		ExportURL:       a.exportURL(r, res),
@@ -216,8 +216,8 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 		Base:      a.baseView(r, res.Label),
 		Resource:  a.resourceMeta(res),
 		Key:       r.PathValue("key"),
-		CanEdit:   res.writable() && a.can(r, CapUpdate, res.name, ""),
-		CanDelete: res.writable() && a.can(r, CapDelete, res.name, ""),
+		CanEdit:   res.canUpdate() && a.can(r, CapUpdate, res.name, ""),
+		CanDelete: res.canDelete() && a.can(r, CapDelete, res.name, ""),
 		Fields:    fields,
 	}
 	a.renderPage(w, r, http.StatusOK, "detail", data)
@@ -227,7 +227,7 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 // CapUpdate; O1 loads the version token).
 func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
-	if !ok || !res.writable() {
+	if !ok || !res.canUpdate() {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be edited.")
 		return
 	}
@@ -267,7 +267,7 @@ func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 // conflict path (O1).
 func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
-	if !ok || !res.writable() {
+	if !ok || !res.canUpdate() {
 		a.renderError(w, r, http.StatusNotFound, "This resource cannot be edited.")
 		return
 	}
@@ -300,7 +300,7 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	}
 
 	version := r.PostFormValue("_version")
-	editable := res.editableColumns()
+	editable := res.updatableColumns()
 	setVals := make([]any, len(editable))
 	for i, c := range editable {
 		setVals[i] = formValueForColumn(r, c)

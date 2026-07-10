@@ -19,30 +19,53 @@ var ErrNoColumns = errors.New("pgdesk/query: no columns supplied")
 var ErrColumnValueMismatch = errors.New("pgdesk/query: column/value count mismatch")
 
 // VersionStrategy selects the optimistic-concurrency token used to guard updates
-// against lost updates (O1). The zero value uses xmin, which needs no schema
-// change. Set Column to use an explicit version/updated_at column instead.
+// against lost updates (O1). It has three modes:
+//
+//   - Column != nil: use an explicit version/updated_at column.
+//   - Column == nil && !NoVersion: use the system xmin column (the default for
+//     ordinary and partitioned tables, which needs no schema change).
+//   - NoVersion: emit no version token at all. This is used for views and foreign
+//     tables, which have no selectable xmin -- selecting it there errors. Such a
+//     relation relies on the key+scope predicate alone to identify the row; a
+//     zero-row update is disambiguated as out-of-scope (404) via ExistsRow, so
+//     there are no false conflicts, at the cost of no lost-update protection.
+//     Declare a version column with Resource.WithVersionColumn to restore it.
 type VersionStrategy struct {
 	// Column, when non-nil, is an explicit version column (e.g. "version" or
-	// "updated_at"). When nil, the system xmin column is used.
+	// "updated_at").
 	Column *introspect.Column
+	// NoVersion, when true, disables optimistic-concurrency versioning entirely.
+	// It takes precedence only when Column is nil.
+	NoVersion bool
 }
 
 // versionSelectExpr returns the SQL expression that yields the version token for
-// SELECT, always as text so it can travel through a signed hidden form field.
+// SELECT, always as text so it can travel through a signed hidden form field. In
+// NoVersion mode it selects a NULL placeholder so the row shape stays uniform and
+// the caller reads an empty token.
 func (v VersionStrategy) versionSelectExpr() string {
-	if v.Column != nil {
+	switch {
+	case v.Column != nil:
 		return Ident(v.Column.Name) + "::text"
+	case v.NoVersion:
+		return "NULL::text"
+	default:
+		return "xmin::text"
 	}
-	return "xmin::text"
 }
 
-// versionPredicate appends the "AND <version> = $N" guard to an UPDATE and
-// returns the fragment. token is the version value captured from the edit form.
+// versionPredicate returns the "<version> = $N" guard fragment for an UPDATE, or
+// an empty string in NoVersion mode (the caller then omits the guard). token is
+// the version value captured from the edit form.
 func (v VersionStrategy) versionPredicate(args *Args, token string) string {
-	if v.Column != nil {
+	switch {
+	case v.Column != nil:
 		return Ident(v.Column.Name) + "::text = " + args.Add(token)
+	case v.NoVersion:
+		return ""
+	default:
+		return "xmin::text = " + args.Add(token)
 	}
-	return "xmin::text = " + args.Add(token)
 }
 
 // SelectRow builds a single-row fetch by key for detail/edit. It selects the
@@ -204,8 +227,10 @@ func UpdateRow(t *introspect.Table, setCols []*introspect.Column, setVals []any,
 	}
 	b.WriteString(" WHERE ")
 	writeKeyPredicate(&b, args, keyCols, keyVals)
-	b.WriteString(" AND ")
-	b.WriteString(ver.versionPredicate(args, versionToken))
+	if pred := ver.versionPredicate(args, versionToken); pred != "" {
+		b.WriteString(" AND ")
+		b.WriteString(pred)
+	}
 	writeScope(&b, args, scope)
 	if len(returning) > 0 {
 		b.WriteString(" RETURNING ")

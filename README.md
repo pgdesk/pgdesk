@@ -148,7 +148,8 @@ Pre-1.0, minor versions may still break; each break is called out in
 schema introspection, declarative resources + auto-registration, the full query
 planner (filters/search/sort/FK labels), complete CRUD with optimistic
 concurrency, bulk actions, CSV export, durable audit, flash/dark-mode/keyboard
-UX, and a 45-test real-PostgreSQL integration suite. See [TASKS.md](TASKS.md) for
+UX, and a 25-test real-PostgreSQL integration suite (199 tests total across the
+module, race-clean). See [TASKS.md](TASKS.md) for
 the phase-by-phase record. No fake stubs: if a feature is listed as done, it works
 and is tested.
 
