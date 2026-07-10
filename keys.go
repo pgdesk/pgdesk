@@ -40,7 +40,7 @@ func (k Keys) Int64s() ([]int64, error) {
 	for i, tuple := range k.vals {
 		n, ok := tuple[0].(int64)
 		if !ok {
-			return nil, fmt.Errorf("pgdesk: Keys.Int64s: key %q value is %T, not an integer", col.Name, tuple[0])
+			return nil, fmt.Errorf("pgdesk: Keys.Int64s: key %q value is %T, not an integer: %w", col.Name, tuple[0], ErrKeyTypeMismatch)
 		}
 		out[i] = n
 	}
@@ -59,7 +59,7 @@ func (k Keys) Strings() ([]string, error) {
 	for i, tuple := range k.vals {
 		s, ok := tuple[0].(string)
 		if !ok {
-			return nil, fmt.Errorf("pgdesk: Keys.Strings: key %q value is %T, not a string", col.Name, tuple[0])
+			return nil, fmt.Errorf("pgdesk: Keys.Strings: key %q value is %T, not a string: %w", col.Name, tuple[0], ErrKeyTypeMismatch)
 		}
 		out[i] = s
 	}
@@ -69,13 +69,43 @@ func (k Keys) Strings() ([]string, error) {
 // Raw returns the decoded key tuples for a composite key or an exotic type. Each
 // tuple positionally matches the resource's key columns. The slice is the action's
 // to keep; pgdesk does not reuse it.
+//
+// For example, a resource keyed on (org_id, slug) yields tuples like
+// {int64(1), "widgets"}, where tuple[0] is org_id and tuple[1] is slug, in that
+// order -- match Resource's declared key column order, or use Column by name.
 func (k Keys) Raw() [][]any { return k.vals }
+
+// Column returns the values of a single named key column across all selected
+// rows, ready to bind to "= ANY($n)". It errors if name is not one of the
+// resource's key columns. Use it for a composite key instead of indexing Raw's
+// tuples positionally.
+func (k Keys) Column(name string) ([]any, error) {
+	idx := -1
+	for i, c := range k.cols {
+		if c.Name == name {
+			idx = i
+			break
+		}
+	}
+	if idx == -1 {
+		names := make([]string, len(k.cols))
+		for i, c := range k.cols {
+			names[i] = c.Name
+		}
+		return nil, fmt.Errorf("pgdesk: Keys.Column: %q is not a key column (have %v)", name, names)
+	}
+	out := make([]any, len(k.vals))
+	for i, tuple := range k.vals {
+		out[i] = tuple[idx]
+	}
+	return out, nil
+}
 
 // single validates that the key is a single column of one of the allowed
 // categories and returns it, with an error naming the actual shape otherwise.
 func (k Keys) single(method string, allow ...introspect.TypeCategory) (*introspect.Column, error) {
 	if len(k.cols) != 1 {
-		return nil, fmt.Errorf("pgdesk: Keys.%s needs a single-column key, but the resource key has %d columns; use Raw", method, len(k.cols))
+		return nil, fmt.Errorf("pgdesk: Keys.%s needs a single-column key, but the resource key has %d columns: %w; use Raw", method, len(k.cols), ErrKeyShapeMismatch)
 	}
 	col := k.cols[0]
 	for _, c := range allow {
@@ -83,5 +113,5 @@ func (k Keys) single(method string, allow ...introspect.TypeCategory) (*introspe
 			return col, nil
 		}
 	}
-	return nil, fmt.Errorf("pgdesk: Keys.%s: key column %q is %s; use a matching accessor or Raw", method, col.Name, col.DataType)
+	return nil, fmt.Errorf("pgdesk: Keys.%s: key column %q is %s: %w; use a matching accessor or Raw", method, col.Name, col.DataType, ErrKeyTypeMismatch)
 }

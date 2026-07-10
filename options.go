@@ -1,6 +1,7 @@
 package pgdesk
 
 import (
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -39,6 +40,19 @@ type config struct {
 	maxExportRows   int
 
 	autoRegister *autoRegisterConfig // nil unless WithAutoRegister is used
+
+	// optionWarnings accumulates notes about option values that were ignored in
+	// favor of a safe default (e.g. a non-positive timeout or size). Options run
+	// before WithLogger is necessarily applied, so they cannot log directly;
+	// newAdmin emits these as WARN lines once every option has run and the
+	// logger is resolved.
+	optionWarnings []string
+}
+
+// noteIgnoredOption records a construction-time note about an option value
+// that was ignored in favor of a safe default. See optionWarnings.
+func (c *config) noteIgnoredOption(note string) {
+	c.optionWarnings = append(c.optionWarnings, note)
 }
 
 func defaultConfig() *config {
@@ -75,6 +89,27 @@ func normalizeBasePath(p string) string {
 	return p
 }
 
+// isSafeBasePath reports whether p is safe to register as an http.ServeMux
+// route prefix. A base path legitimately contains '/' as a segment separator,
+// so this extends isURLSafe's allowed character set with '/' while still
+// rejecting '{', '}', whitespace, and other control/punctuation characters
+// that would make mux.Handle panic under Go 1.22+ ServeMux pattern syntax.
+func isSafeBasePath(p string) bool {
+	if p == "" {
+		return false
+	}
+	for _, c := range p {
+		switch {
+		case c == '/':
+		case (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') ||
+			(c >= '0' && c <= '9') || c == '-' || c == '_':
+		default:
+			return false
+		}
+	}
+	return true
+}
+
 // WithTitle sets the admin site title shown in the UI header.
 func WithTitle(title string) Option {
 	return func(c *config) { c.title = title }
@@ -86,11 +121,15 @@ func WithBasePath(path string) Option {
 }
 
 // WithSchemas sets the PostgreSQL schemas to introspect (default "public").
+// Calling it with no arguments is ignored (a WARN is logged at construction)
+// and the previous schema list is kept.
 func WithSchemas(schemas ...string) Option {
 	return func(c *config) {
 		if len(schemas) > 0 {
 			c.schemas = append([]string(nil), schemas...)
+			return
 		}
+		c.noteIgnoredOption("pgdesk: WithSchemas() called with no arguments; ignored, keeping " + strings.Join(c.schemas, ","))
 	}
 }
 
@@ -117,6 +156,10 @@ func WithResource(name string, configure func(*Resource)) Option {
 // WithSecretKey sets the CSRF signing key. The first key is primary (used to
 // sign); any additional keys are accepted for verification to support rotation.
 // A key is REQUIRED once mutations are possible or New returns an error.
+//
+// Calling WithSecretKey more than once REPLACES the key set rather than
+// merging it: the last call wins, and its retired set replaces any earlier
+// one entirely.
 func WithSecretKey(primary []byte, retired ...[]byte) Option {
 	return func(c *config) {
 		c.secretPrimary = append([]byte(nil), primary...)
@@ -138,23 +181,31 @@ func WithLogger(l *slog.Logger) Option {
 }
 
 // WithQueryTimeout bounds every DB call with a context deadline (default 15s).
+// A value <= 0 is ignored (a WARN is logged at construction) and the current
+// timeout is kept.
 func WithQueryTimeout(d time.Duration) Option {
 	return func(c *config) {
 		if d > 0 {
 			c.queryTimeout = d
+			return
 		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithQueryTimeout(%s) ignored: value must be > 0, keeping %s", d, c.queryTimeout))
 	}
 }
 
 // WithExportTimeout bounds a CSV export's streaming query with its own, longer
 // deadline (default 5m). An export streams up to WithMaxExportRows rows and is a
 // different workload from an interactive query, so it does not share the shorter
-// WithQueryTimeout; a value below the query timeout is raised to it at use.
+// WithQueryTimeout; a value below the query timeout is raised to it at use. A
+// value <= 0 is ignored (a WARN is logged at construction) and the current
+// timeout is kept.
 func WithExportTimeout(d time.Duration) Option {
 	return func(c *config) {
 		if d > 0 {
 			c.exportTimeout = d
+			return
 		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithExportTimeout(%s) ignored: value must be > 0, keeping %s", d, c.exportTimeout))
 	}
 }
 
@@ -163,7 +214,7 @@ func WithMiddleware(mw ...Middleware) Option {
 	return func(c *config) { c.middleware = append(c.middleware, mw...) }
 }
 
-// WithLoginURL sets where unauthenticated GET requests are redirected . When
+// WithLoginURL sets where unauthenticated GET requests are redirected. When
 // empty, protected GET routes return 401 instead of redirecting.
 func WithLoginURL(url string) Option {
 	return func(c *config) { c.loginURL = url }
@@ -177,13 +228,17 @@ func WithAuthorizer(az Authorizer) Option {
 }
 
 // WithAuditLogger sets a best-effort, out-of-band audit sink. For
-// guaranteed durability use WithTxAuditLogger instead.
+// guaranteed durability use WithTxAuditLogger instead. If both a best-effort
+// and a transactional audit logger are configured, both are invoked for
+// every mutation.
 func WithAuditLogger(l AuditLogger) Option {
 	return func(c *config) { c.audit = l }
 }
 
 // WithTxAuditLogger sets a transactional audit sink that writes inside the
 // mutation's transaction, so a mutation cannot commit without its audit record.
+// If both a best-effort and a transactional audit logger are configured, both
+// are invoked for every mutation.
 func WithTxAuditLogger(l TxAuditLogger) Option {
 	return func(c *config) { c.txAudit = l }
 }
@@ -197,31 +252,54 @@ func WithMetrics(m Metrics) Option {
 	}
 }
 
-// WithMaxBodyBytes caps the size of any form POST body (default 1 MiB).
+// WithMaxBodyBytes caps the size of any form POST body (default 1 MiB). A
+// value <= 0 is ignored (a WARN is logged at construction) and the current
+// limit is kept.
 func WithMaxBodyBytes(n int64) Option {
 	return func(c *config) {
 		if n > 0 {
 			c.maxBodyBytes = n
+			return
 		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxBodyBytes(%d) ignored: value must be > 0, keeping %d", n, c.maxBodyBytes))
 	}
 }
 
 // WithMaxPageSize sets the hard upper bound on list page size regardless of the
-// ?page_size= query parameter.
+// ?page_size= query parameter. A value <= 0 is ignored (a WARN is logged at
+// construction) and the current limit is kept.
 func WithMaxPageSize(n int) Option {
 	return func(c *config) {
 		if n > 0 {
 			c.maxPageSize = n
+			return
 		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxPageSize(%d) ignored: value must be > 0, keeping %d", n, c.maxPageSize))
 	}
 }
 
 // WithMaxExportRows caps how many rows a CSV export streams, so an export can't
-// force an unbounded scan (default 50000).
+// force an unbounded scan (default 50000). A value <= 0 is ignored (a WARN is
+// logged at construction) and the current limit is kept.
 func WithMaxExportRows(n int) Option {
 	return func(c *config) {
 		if n > 0 {
 			c.maxExportRows = n
+			return
 		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxExportRows(%d) ignored: value must be > 0, keeping %d", n, c.maxExportRows))
+	}
+}
+
+// WithMaxBulk caps how many rows a single bulk action may operate on (default
+// 500). A value <= 0 is ignored (a WARN is logged at construction) and the
+// current limit is kept.
+func WithMaxBulk(n int) Option {
+	return func(c *config) {
+		if n > 0 {
+			c.maxBulk = n
+			return
+		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxBulk(%d) ignored: value must be > 0, keeping %d", n, c.maxBulk))
 	}
 }

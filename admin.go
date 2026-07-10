@@ -33,7 +33,6 @@ import (
 // helper interface) so it documents itself in go doc.
 type DB interface {
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
-	Begin(ctx context.Context) (pgx.Tx, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
 	QueryRow(ctx context.Context, sql string, args ...any) pgx.Row
 	Exec(ctx context.Context, sql string, args ...any) (pgconn.CommandTag, error)
@@ -92,6 +91,20 @@ func newAdmin(db DB, opts ...Option) (*Admin, error) {
 	cfg := defaultConfig()
 	for _, opt := range opts {
 		opt(cfg)
+	}
+
+	// Validate the normalized base path before it can reach mux.Handle, which
+	// would otherwise panic on a value containing '{', '}', whitespace, or
+	// control characters (Go 1.22+ ServeMux pattern syntax). New never panics
+	// on configuration (D2).
+	if !isSafeBasePath(cfg.basePath) {
+		return nil, ErrUnsafeBasePath
+	}
+
+	// Every option has now run (including WithLogger), so it's safe to emit
+	// notes about option values that were ignored in favor of a safe default.
+	for _, note := range cfg.optionWarnings {
+		cfg.logger.Warn(note)
 	}
 
 	a := &Admin{
@@ -286,11 +299,45 @@ func (a *Admin) Reload(ctx context.Context) error {
 }
 
 // logExposure logs the full set of exposed resources so an operator can spot a
-// leaked PII or system table immediately (D2).
+// leaked PII or system table immediately (D2). It also flags a construction
+// state that looks like a mistake: no Authorizer configured while resources
+// are exposed (fail-closed, but silently so) and any resource whose PageSize
+// exceeds the admin's maxPageSize (harmless -- F6 clamps at request time --
+// but worth a nudge).
 func (a *Admin) logExposure(st *adminState, reason string) {
+	authorizerState := "configured"
+	if a.cfg.authorizer == nil {
+		authorizerState = "none (deny-all)"
+	}
 	a.cfg.logger.Info("pgdesk: "+reason,
 		"tables", len(st.catalog.Tables()),
-		"exposed_resources", st.order)
+		"exposed_resources", st.order,
+		"authorizer", authorizerState,
+	)
+
+	if a.cfg.authorizer == nil && len(st.order) > 0 {
+		a.cfg.logger.Warn("pgdesk: no Authorizer configured — every capability is denied until WithAuthorizer is set (use pgdesk.AllowAll if the admin is gated by host middleware)")
+	}
+
+	a.warnOversizedPageSizes(st)
+}
+
+// warnOversizedPageSizes logs a WARN for every resource whose configured
+// PageSize exceeds the admin's maxPageSize. The oversized value is harmless
+// (list requests are still clamped to maxPageSize at request time, F6), but
+// it usually means WithMaxPageSize and Resource.PageSize were set
+// inconsistently.
+func (a *Admin) warnOversizedPageSizes(st *adminState) {
+	for _, name := range st.order {
+		r := st.resources[name]
+		if r.pageSize > a.cfg.maxPageSize {
+			a.cfg.logger.Warn("pgdesk: resource PageSize exceeds WithMaxPageSize; requests are clamped to the max",
+				"resource", name,
+				"page_size", r.pageSize,
+				"max_page_size", a.cfg.maxPageSize,
+			)
+		}
+	}
 }
 
 // Healthy reports whether the admin can serve: the pool answers a ping and a
@@ -312,7 +359,8 @@ func (a *Admin) Healthy(ctx context.Context) error {
 
 // Close marks the admin closed for orderly teardown (O3). It does NOT close the
 // pool -- the host owns the pool's lifecycle. After Close, request handling and
-// Reload return ErrClosed.
+// Reload return ErrClosed. Close currently always returns nil; the error return
+// is reserved for future teardown steps.
 func (a *Admin) Close() error {
 	a.closed.Store(true)
 	return nil

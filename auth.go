@@ -175,6 +175,10 @@ func (set denyOverrides) Scope(ctx context.Context, attrs Attributes) ([]Constra
 // Decision to bool in the whole package. It is written "dec == Allow" and never
 // "dec != Deny": every path that is not an explicit Allow denies -- a nil
 // authorizer, a nil principal, an Abstain, or an error.
+//
+// The attrs.Principal == nil gate holds only because PrincipalFromContext
+// normalizes a typed-nil pointer principal to nil; without that normalization a
+// non-nil interface wrapping a nil pointer would slip past this check.
 func permitted(ctx context.Context, az Authorizer, attrs Attributes) (bool, error) {
 	if az == nil || attrs.Principal == nil {
 		return false, nil

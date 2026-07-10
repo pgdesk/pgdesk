@@ -19,7 +19,7 @@ const (
 
 // AuditEvent is a structured, complete record of a mutation (O4). Before/after
 // snapshots respect field-level redaction so secrets never enter the audit trail
-// (fields flagged with Field.Redact are omitted).
+// (columns marked with Resource.Redact are omitted).
 type AuditEvent struct {
 	// ActorID and ActorName come from the request Principal.
 	ActorID   string

@@ -47,9 +47,9 @@ pgdesk.WithResource("users", func(r *pgdesk.Resource) {
     // A bulk action runs against the selected rows inside the mutation's
     // transaction, audited and CSRF-protected. Returning an error rolls back.
     r.Action("suspend", "Suspend selected",
-        func(ctx context.Context, tx pgx.Tx, keys [][]any) (string, error) {
-            ids := make([]any, len(keys))
-            for i, k := range keys { ids[i] = k[0] }
+        func(ctx context.Context, tx pgx.Tx, keys pgdesk.Keys) (string, error) {
+            ids, err := keys.Int64s()
+            if err != nil { return "", err }
             tag, err := tx.Exec(ctx, "UPDATE users SET status='suspended' WHERE id = ANY($1)", ids)
             if err != nil { return "", err }
             return fmt.Sprintf("Suspended %d users.", tag.RowsAffected()), nil
@@ -58,6 +58,8 @@ pgdesk.WithResource("users", func(r *pgdesk.Resource) {
     )
 })  // pass to pgdesk.New(pool, ...)
 ```
+
+The `Keys` type -- received by every action -- provides typed accessors like `Int64s()` and `Strings()` to hand back a typed slice ready to bind to `= ANY($n)`. This is both friendlier than raw `[][]any` and safer: a `[]any` bound as an argument fails to encode when pgx runs without a describe step (behind transaction-pooling proxies like PgBouncer), whereas a concrete `[]int64` or `[]string` encodes in every mode. For composite keys or exotic types, use `Keys.Raw()` or `Keys.Column(name)`.
 
 Every list has a **CSV export** link (`/admin/users/export.csv`) that streams the
 current filtered/sorted view through the same authorizer and query builder.
@@ -78,6 +80,76 @@ func (auditLogger) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEven
 
 See [examples/basic](examples/basic) for a minimal, single-file runnable app on
 `net/http` -- connect a pool, declare one resource, mount, serve.
+
+### Production features
+
+pgdesk ships several features for production deployments:
+
+**Readiness probes:** `Admin.Healthy(ctx)` pings the pool and checks that a catalog
+is loaded. Wire it to your `/healthz` endpoint:
+
+```go
+mux.HandleFunc("/healthz", func(w http.ResponseWriter, r *http.Request) {
+    if err := admin.Healthy(r.Context()); err != nil {
+        w.WriteHeader(http.StatusServiceUnavailable)
+        fmt.Fprintf(w, "Unhealthy: %v\n", err)
+        return
+    }
+    w.WriteHeader(http.StatusOK)
+    fmt.Fprint(w, "OK\n")
+})
+```
+
+**Catalog reload:** `Admin.Reload(ctx)` rebuilds the catalog without restarting,
+degrading to stale on failure. Wire it to `SIGHUP`:
+
+```go
+sigCh := make(chan os.Signal, 1)
+signal.Notify(sigCh, syscall.SIGHUP)
+go func() {
+    for range sigCh {
+        if err := admin.Reload(context.Background()); err != nil {
+            log.Printf("catalog reload failed (keeping previous): %v\n", err)
+        }
+    }
+}()
+```
+
+**Timeouts:** `WithQueryTimeout` (default 15s, applied to all DB calls) and
+`WithExportTimeout` (default 5m, applied to CSV exports) bound resource use:
+
+```go
+pgdesk.WithQueryTimeout(20*time.Second),
+pgdesk.WithExportTimeout(10*time.Minute),
+```
+
+**CSRF key rotation:** `WithSecretKey` accepts a primary key and retired keys for
+verification, so you can rotate without invalidating existing forms:
+
+```go
+pgdesk.WithSecretKey(newKey, oldKey1, oldKey2)  // primary, then retired
+```
+
+**Observability:** `WithMetrics` hooks into your metrics system (no external
+dependencies). Implement the `Metrics` interface to observe request outcomes
+and DB operation latencies:
+
+```go
+type myMetrics struct{}
+func (m myMetrics) ObserveRequest(route string, status int, dur time.Duration) {
+    // Emit to Prometheus, Datadog, etc.
+}
+func (m myMetrics) ObserveQuery(op string, dur time.Duration, err error) {
+    // Track query latency and errors
+}
+// pgdesk.New(pool, pgdesk.WithMetrics(myMetrics{}), ...)
+```
+
+**Durable audit:** `WithTxAuditLogger` writes audit records inside the mutation
+transaction, so they are guaranteed durably (see the audit example above).
+
+For session/auth, see [examples/session-auth](examples/session-auth) for a
+production-ready pattern using signed cookies.
 
 ### Auto-registration (opt-in convenience)
 
@@ -127,6 +199,32 @@ public internet expecting more than it claims.**
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the full set of locked
 decisions (D1-D7, F1-F8, O1-O8).
 
+## Authorization & row scoping
+
+For users: pgdesk separates authorization (which operations an operator may perform) from row scoping (which rows they may see or modify). The host supplies an `Authorizer` that answers *may I perform capability C?* and optionally implements `Scoper` to answer *which rows exist for me?* Row constraints are pushed into the SQL `WHERE` clause, making them atomic and fast.
+
+See [docs/AUTHORIZATION.md](docs/AUTHORIZATION.md) for the full design, including how row scoping fixes pagination, concurrency, and bulk-action safety.
+
+A concrete example: tenant scoping that restricts all resources to a single organization:
+
+```go
+func tenantScope(ctx context.Context, attrs pgdesk.Attributes) ([]pgdesk.Constraint, error) {
+    org := orgOf(attrs.Principal)  // helper to extract org from Principal
+    if org == "" {
+        return nil, errors.New("no organization attached to principal")
+    }
+    return []pgdesk.Constraint{pgdesk.Eq("org_id", org)}, nil
+}
+
+admin, err := pgdesk.New(pool,
+    pgdesk.WithSecretKey(secret),
+    pgdesk.WithAuthorizer(pgdesk.ScopeOnly(tenantScope)),
+    // ... other options
+)
+```
+
+Every list, detail, edit, delete, and bulk action automatically gets `WHERE org_id = $N` ANDed in. The constraint is checked during schema configuration, so an unknown column or incompatible operator fails at startup.
+
 ## API stability promise (SemVer)
 
 pgdesk follows [Semantic Versioning](https://semver.org/). The module path
@@ -149,9 +247,8 @@ schema introspection, declarative resources + auto-registration, the full query
 planner (filters/search/sort/FK labels), complete CRUD with optimistic
 concurrency, bulk actions, CSV export, durable audit, flash/dark-mode/keyboard
 UX, and a 25-test real-PostgreSQL integration suite (199 tests total across the
-module, race-clean). See [TASKS.md](TASKS.md) for
-the phase-by-phase record. No fake stubs: if a feature is listed as done, it works
-and is tested.
+module, race-clean). No fake stubs: if a feature is listed as done, it works
+and is tested. See [CHANGELOG.md](CHANGELOG.md) for the unreleased changes.
 
 ## License
 

@@ -3,6 +3,7 @@ package pgdesk
 import (
 	"context"
 	"log/slog"
+	"reflect"
 )
 
 // ctxKey is an unexported context key type so pgdesk's values never collide with
@@ -27,8 +28,20 @@ func WithPrincipal(ctx context.Context, p Principal) context.Context {
 
 // PrincipalFromContext returns the Principal attached by WithPrincipal, or nil if
 // none is present. A nil principal on a protected route is denied (O6).
+//
+// A typed-nil pointer principal -- e.g. WithPrincipal(ctx, (*AppUser)(nil)) -- is
+// treated as absent and returned as nil. Without this normalization the interface
+// value would be non-nil, defeating every "Principal == nil" fail-closed gate and
+// inviting a nil-receiver panic or a forged audit actor. The single choke point
+// here means each read path stays fail-closed without repeating the check.
 func PrincipalFromContext(ctx context.Context) Principal {
 	p, _ := ctx.Value(ctxKeyPrincipal).(Principal)
+	if p == nil {
+		return nil
+	}
+	if rv := reflect.ValueOf(p); rv.Kind() == reflect.Pointer && rv.IsNil() {
+		return nil
+	}
 	return p
 }
 

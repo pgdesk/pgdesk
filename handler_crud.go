@@ -351,7 +351,7 @@ var errConflict = errors.New("pgdesk: optimistic concurrency conflict")
 // no partial write escapes a cancelled or failed request (O3). The host owns the
 // pool; this owns only the transaction.
 func (a *Admin) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
-	tx, err := a.db.Begin(ctx)
+	tx, err := a.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
 		return err
 	}
