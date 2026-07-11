@@ -67,8 +67,9 @@ opt-in auto-registration that logs its full exposed set at startup.
 
 -> See the **[usage guide](docs/GUIDE.md)** for how to wire all of it, and the
 **[examples](examples)** for runnable apps: [basic](examples/basic),
-[session-auth](examples/session-auth), and [gorm](examples/gorm) (pgdesk over a
-GORM-owned schema, sharing one pool).
+[session-auth](examples/session-auth), [gorm](examples/gorm) (pgdesk over a
+GORM-owned schema, sharing one pool), and [gin](examples/gin) (mounted behind a
+Gin router).
 
 ## Security & scope
 
