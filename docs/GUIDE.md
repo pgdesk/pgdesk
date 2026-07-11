@@ -182,6 +182,50 @@ Place any custom templates in your `templates/` directory. For example, `templat
 will replace the built-in list view template, while built-in templates like `detail.html`
 will continue to be used if you don't provide an override.
 
+## Using pgdesk with an existing ORM (GORM, ent, sqlc, ...)
+
+pgdesk integrates with your **database**, not your ORM. It never sees your Go
+structs or model definitions -- it reads `pg_catalog` and runs its own SQL. So it
+works, unchanged, alongside any data layer that produces tables: GORM, ent, sqlc,
+bun, or hand-written migrations. There is no adapter to write and nothing to
+"support" per-ORM; whatever created the tables, pgdesk introspects the result.
+
+The only requirement is that pgdesk wants a native **`*pgxpool.Pool`** (not a
+`database/sql` `*sql.DB`). If your app already uses pgx, hand pgdesk the pool you
+have. If it doesn't, you can share a single pool between pgdesk and your ORM using
+pgx's `database/sql` bridge, `stdlib.OpenDBFromPool`:
+
+```go
+import (
+    "github.com/jackc/pgx/v5/pgxpool"
+    "github.com/jackc/pgx/v5/stdlib"
+    "gorm.io/driver/postgres"
+    "gorm.io/gorm"
+)
+
+// One native pgx pool. pgdesk uses it directly.
+pool, _ := pgxpool.New(ctx, dsn)
+
+// GORM, backed by the SAME pool via the database/sql bridge -- one pool, not two.
+gdb, _ := gorm.Open(postgres.New(postgres.Config{
+    Conn: stdlib.OpenDBFromPool(pool),
+}), &gorm.Config{})
+
+// GORM owns the schema (models + migrations); pgdesk reads the live result.
+gdb.AutoMigrate(&User{})
+admin, _ := pgdesk.New(pool, /* ... */)
+```
+
+GORM manages your models and migrations; pgdesk introspects the schema those
+migrations produced and serves the admin over it. A runnable version of exactly
+this -- migrate, seed, and administer a GORM-owned `users` table on one shared
+pool -- is in [examples/gorm](../examples/gorm).
+
+**One rule for bulk actions:** an action receives a live `pgx.Tx` and should run
+plain parameterized SQL on it. Do not open an ORM session inside an action -- an
+ORM call runs outside pgdesk's transaction and forfeits the atomic
+mutation-plus-audit guarantee.
+
 ## Production features
 
 **Readiness probes:** `Admin.Healthy(ctx)` pings the pool and checks that a catalog
