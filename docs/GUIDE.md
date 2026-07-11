@@ -39,6 +39,26 @@ admin.Mount(mux)
 See [examples/basic](../examples/basic) for a minimal, single-file runnable app on
 `net/http` -- connect a pool, declare one resource, mount, serve.
 
+### Mounting under another router (Gin, chi, ...)
+
+`Admin` is a plain `net/http.Handler`, so it mounts under any router with no
+adapter. `Admin.Mount(mux)` is a convenience for the standard `*http.ServeMux`
+that registers the admin subtree plus a redirect from the bare base path to its
+trailing-slash root. Under a third-party router you use the handler directly and
+add that one redirect yourself:
+
+```go
+// Gin: gin.WrapH turns the handler into a gin handler.
+r.GET("/admin", func(c *gin.Context) { c.Redirect(http.StatusMovedPermanently, "/admin/") })
+r.Any("/admin/*any", gin.WrapH(admin))
+
+// chi: mount the subtree; Admin routes on the full path internally.
+r.Handle("/admin/*", admin)
+```
+
+Attach the `Principal` with your router's own middleware (see
+[examples/gin](../examples/gin)) or with `WithMiddleware` inside `pgdesk.New`.
+
 ## Resource configuration
 
 Each resource can be customized with field display, sorting, search, and foreign-key

@@ -10,7 +10,8 @@
 
 Runnable examples live in [`../examples`](../examples): [`basic`](../examples/basic)
 (minimal single-file app), [`session-auth`](../examples/session-auth)
-(signed-cookie `Principal` wiring), and [`gorm`](../examples/gorm) (pgdesk over a
-GORM-owned schema, sharing one pool).
+(signed-cookie `Principal` wiring), [`gorm`](../examples/gorm) (pgdesk over a
+GORM-owned schema, sharing one pool), and [`gin`](../examples/gin) (mounted behind
+a Gin router).
 
 New here? Start with the [README](../README.md), then the [GUIDE](GUIDE.md).
