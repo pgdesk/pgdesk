@@ -36,6 +36,10 @@ admin.Mount(mux) // that's it — the admin is live at /admin/
   and speaks pgx natively — including capabilities you can't fake: a view that
   isn't updatable gets no edit button, an identity column is dropped from the
   insert form. Not database-agnostic, and better for it.
+- **ORM-agnostic.** pgdesk reads your database, not your models — so it drops in
+  next to GORM, ent, sqlc, bun, or hand-written SQL with no adapter and no
+  lock-in. Share one `pgxpool` and your existing schema is administered as-is.
+  ([GORM example →](examples/gorm))
 - **Standard library, all the way down.** `net/http`, `html/template`,
   `context`. Mounts on a `ServeMux` or acts as a bare `http.Handler`. No Chi, Gin,
   Echo, or Fiber. No mandatory Node build.
@@ -62,8 +66,9 @@ catalog reload, metrics hook · flash messages, dark mode, keyboard shortcuts ·
 opt-in auto-registration that logs its full exposed set at startup.
 
 → See the **[usage guide](docs/GUIDE.md)** for how to wire all of it, and the
-**[examples](examples)** for runnable apps ([basic](examples/basic),
-[session-auth](examples/session-auth)).
+**[examples](examples)** for runnable apps: [basic](examples/basic),
+[session-auth](examples/session-auth), and [gorm](examples/gorm) (pgdesk over a
+GORM-owned schema, sharing one pool).
 
 ## Security & scope
 
