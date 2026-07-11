@@ -1,19 +1,19 @@
 # pgdesk over a GORM schema
 
-A full admin UI over a database whose models are owned by **GORM** — proving
+A full admin UI over a database whose models are owned by **GORM** -- proving
 pgdesk is **ORM-agnostic**. GORM defines the models and runs the migration;
 pgdesk reads the *live schema* those models produce and serves list, search,
 filter, CRUD, a transactional bulk action, and CSV export over it. pgdesk is
-never handed a struct — it introspects the database — so the same pattern works
+never handed a struct -- it introspects the database -- so the same pattern works
 unchanged for ent, sqlc, bun, or hand-written SQL.
 
 **One pool, not two.** GORM rides pgx's `database/sql` bridge
 (`stdlib.OpenDBFromPool`) over the very same `*pgxpool.Pool` pgdesk uses natively:
 
 ```go
-pool, _ := pgxpool.New(ctx, dsn)                                   // native pgx — pgdesk
+pool, _ := pgxpool.New(ctx, dsn)                                   // native pgx -- pgdesk
 gdb, _  := gorm.Open(postgres.New(postgres.Config{
-    Conn: stdlib.OpenDBFromPool(pool),                             // same pool — GORM
+    Conn: stdlib.OpenDBFromPool(pool),                             // same pool -- GORM
 }))
 ```
 
@@ -31,7 +31,7 @@ DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres?sslmode=disabl
 ```
 
 Then open <http://localhost:8080/admin/>. GORM migrates and seeds a `users`
-table; pgdesk administers it — no model glue in between.
+table; pgdesk administers it -- no model glue in between.
 
 ## The one rule
 

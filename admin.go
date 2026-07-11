@@ -318,7 +318,7 @@ func (a *Admin) logExposure(st *adminState, reason string) {
 	)
 
 	if a.cfg.authorizer == nil && len(st.order) > 0 {
-		a.cfg.logger.Warn("pgdesk: no Authorizer configured — every capability is denied until WithAuthorizer is set (use pgdesk.AllowAll if the admin is gated by host middleware)")
+		a.cfg.logger.Warn("pgdesk: no Authorizer configured -- every capability is denied until WithAuthorizer is set (use pgdesk.AllowAll if the admin is gated by host middleware)")
 	}
 
 	a.warnOversizedPageSizes(st)
