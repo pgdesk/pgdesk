@@ -116,9 +116,14 @@ type listView struct {
 	NextURL         string
 }
 
+// detailField is one row of the detail page. FKLabel/FKLink mirror cellView: a
+// foreign key shows the referenced row's label, linked to it, rather than the raw
+// key -- the same substitution the list page makes.
 type detailField struct {
-	Label string
-	Value any
+	Label   string
+	Value   any
+	FKLabel string
+	FKLink  string
 }
 
 type detailView struct {
@@ -142,6 +147,12 @@ type formField struct {
 	Widget       string
 	Checked      bool
 	Options      []string
+	// Ref names the resource a foreign-key field searches for its options. Empty
+	// unless Widget is WidgetFK.
+	Ref string
+	// ValueLabel is the human label for the current foreign-key value, so a
+	// picker (and a JavaScript-less form) shows who row 7 is, not just "7".
+	ValueLabel string
 }
 
 type formView struct {

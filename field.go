@@ -9,7 +9,8 @@ const (
 	WidgetText     Widget = "text"     // single-line text input
 	WidgetTextarea Widget = "textarea" // multi-line text
 	WidgetCheckbox Widget = "checkbox" // boolean
-	WidgetSelect   Widget = "select"   // enum / FK
+	WidgetSelect   Widget = "select"   // enum: a fixed, known-small option set
+	WidgetFK       Widget = "fk"       // foreign key: bounded search against the referenced resource
 	WidgetJSON     Widget = "json"     // JSON editor (bootstrapped safely)
 	WidgetDateTime Widget = "datetime" // timestamp picker
 )

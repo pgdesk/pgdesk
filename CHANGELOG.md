@@ -7,6 +7,23 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- `CapAccessAdmin` now gates every admin route, not only the index page.
+  Previously an authorizer that denied it -- the most natural way to express "this
+  operator is not an admin" -- hid the navigation while every resource route still
+  served rows: `/admin/` returned 403 but `/admin/users`, its detail, edit, export
+  and picker routes all returned 200 with data. Static assets stay reachable so
+  the 403 page renders.
+- A submitted foreign-key value is now validated against the referenced
+  resource's row scope, inside the mutation's own transaction. The picker offers
+  only in-scope rows, but the write path accepted any key an operator typed, so a
+  hand-written POST could create a reference across a scope boundary -- and the
+  accept/reject answer was an oracle for which keys exist in a table the operator
+  cannot read. A violation renders the same inline 422 field error a database
+  validation failure does. Foreign keys to unregistered tables, and referenced
+  resources with no scope, are unaffected.
+
 ### Fixed
 
 - `numeric`, `uuid`, `json`/`jsonb`, `time`, `interval`, `bit` and `point` values
@@ -26,6 +43,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Foreign-key pickers. A single-column foreign key whose referenced table is a
+  registered resource now renders as a bounded search combobox on create/edit
+  forms, and resolves to a linked label on the detail page (previously only the
+  list page did this; forms and detail showed the raw key).
+  - New endpoint `GET {basePath}/{resource}/options.json?q=` returns at most
+    `WithMaxOptions(n)` (default 20) `{value,label}` pairs, and reports
+    `truncated`. It requires `CapList` on the referenced resource and applies
+    that resource's row scope, so a picker cannot reveal a row the operator
+    could not have listed. It answers in JSON on every path, including refusals.
+  - New option `WithMaxOptions(n)`; new `Widget` constant `WidgetFK`. An explicit
+    `Resource.Widget` still wins over the foreign-key default.
+  - The response also reports `searchable`, so a resource with no text column to
+    match says the term was not applied instead of returning the unfiltered first
+    page as if it were a set of matches.
+  - A readonly foreign key (generated, identity, or `Resource.Readonly`) shows its
+    label too, matching the detail page.
+  - The field stays a real `<input>` carrying the key, so forms keep working with
+    JavaScript disabled; `pgdesk.js` upgrades it in place to a WAI-ARIA combobox.
 - Documentation: Authorization & row scoping section with concrete tenant-scoping example
 - Documentation: Production checklist covering readiness probes, catalog reloads, metrics, timeouts, and audit
 - New example: `examples/session-auth/` demonstrating Principal attachment via signed cookie middleware

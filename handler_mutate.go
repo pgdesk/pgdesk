@@ -24,8 +24,15 @@ func (a *Admin) createAction(res *Resource) string {
 // also fires when the pool is saturated because acquisition respects the context)
 // becomes a 503 with Retry-After rather than an indefinite hang or a 500 (O2).
 // Everything else is a logged generic 500 (F5).
+// isDeadline reports whether err is a request deadline or cancellation, which
+// pool saturation also surfaces as. Both the HTML and JSON error paths classify
+// it as a retryable 503 rather than a server fault.
+func isDeadline(err error) bool {
+	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
+}
+
 func (a *Admin) dbError(w http.ResponseWriter, r *http.Request, stage string, err error) {
-	if errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled) {
+	if isDeadline(err) {
 		LoggerFromContext(r.Context()).Warn("pgdesk: request deadline or pool saturation",
 			"stage", stage, "error", err, "request_id", RequestIDFromContext(r.Context()))
 		w.Header().Set("Retry-After", "1")
@@ -73,7 +80,7 @@ func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 		Resource: a.resourceMeta(res),
 		Action:   a.createAction(res),
 		IsCreate: true,
-		Fields:   a.buildFormFields(res, display, map[string]any{}, nil),
+		Fields:   a.buildFormFields(r, res, display, map[string]any{}, nil),
 	}
 	a.renderPage(w, r, http.StatusOK, "form", data)
 }
@@ -132,8 +139,13 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := a.queryContext(r)
 	defer cancel()
-	after, insErr := a.execInsertTx(ctx, r, res, sql, args, returning)
+	after, insErr := a.execInsertTx(ctx, r, res, sql, args, returning, setCols, setVals)
 	if insErr != nil {
+		var fkErr *fkScopeError
+		if errors.As(insErr, &fkErr) {
+			a.renderCreateWithErrors(w, r, res, unavailableSelection(fkErr))
+			return
+		}
 		me := mapPgError(insErr, res.constraintMsgs, res.table.UniqueColumns)
 		if me.empty() {
 			a.dbError(w, r, "create", insErr)
@@ -152,9 +164,14 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // execInsertTx runs the INSERT and audit in one transaction (O4).
-func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column) (map[string]any, error) {
+func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, setCols []*introspect.Column, setVals []any) (map[string]any, error) {
 	var after map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
+		// In the same transaction as the write, so no row can leave the
+		// principal's scope between the check and the INSERT.
+		if err := a.checkFKScope(ctx, tx, r, res, setCols, setVals); err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, sql, args...)
 		if err != nil {
 			return err
@@ -179,11 +196,18 @@ func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource
 	return after, nil
 }
 
+// unavailableSelection turns a scope violation into the same inline field error a
+// database validation failure produces, so the operator sees one consistent
+// message and learns nothing about the row they could not reach.
+func unavailableSelection(e *fkScopeError) mappedError {
+	return mappedError{fieldErrors: map[string]string{e.column: "is not an available selection"}}
+}
+
 // renderCreateWithErrors re-renders the create form after a DB validation error
 // (D7), preserving the operator's submitted values.
 func (a *Admin) renderCreateWithErrors(w http.ResponseWriter, r *http.Request, res *Resource, me mappedError) {
 	display := visibleColumns(res.table.Columns(), res)
-	fields := a.buildFormFields(res, display, map[string]any{}, me.fieldErrors)
+	fields := a.buildFormFields(r, res, display, map[string]any{}, me.fieldErrors)
 	overlaySubmitted(r, res, fields)
 	data := formView{
 		Base:      a.baseView(r, "New "+res.Label),

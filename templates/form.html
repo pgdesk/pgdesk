@@ -26,6 +26,7 @@
     <label for="f_{{ $f.Name }}">{{ $f.Label }}{{ if $f.Required }} <span class="pg-req">*</span>{{ end }}</label>
     {{- if $f.Readonly }}
     <input id="f_{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}" readonly>
+    {{- if $f.ValueLabel }}<span class="pg-fk-current">{{ $f.ValueLabel }}</span>{{ end }}
     {{- else if eq $f.Widget "checkbox" }}
     <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="checkbox" value="true"{{ if $f.Checked }} checked{{ end }}>
     {{- else if eq $f.Widget "textarea" }}
@@ -38,6 +39,17 @@
       <option value="{{ . }}"{{ if eq . $f.ValueString }} selected{{ end }}>{{ . }}</option>
       {{- end }}
     </select>
+    {{- else if eq $f.Widget "fk" }}
+    {{- /* A real text input, so the form works with no JavaScript: the operator
+           can still type a key, and the current row's label is shown beside it.
+           pgdesk.js upgrades this into a search combobox using data-pg-fk. */ -}}
+    <div class="pg-fk" data-pg-fk="{{ $f.Ref }}" data-pg-fk-url="{{ $.Base.BasePath }}/{{ $f.Ref }}/options.json">
+      <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}"
+             autocomplete="off" class="pg-fk-input">
+      {{- if $f.ValueLabel }}
+      <span class="pg-fk-current">{{ $f.ValueLabel }}</span>
+      {{- end }}
+    </div>
     {{- else }}
     <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}">
     {{- end }}

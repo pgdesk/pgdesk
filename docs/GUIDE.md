@@ -85,6 +85,49 @@ fields; they are not validated against the catalog. All other configuration goes
 setter methods (`ListDisplay`, `Filters`, `Key`, ...) that validate column names and fail
 `New()` on a mistake.
 
+### Foreign-key pickers
+
+A foreign-key column is a picker, not an id box. On the list and detail pages the referenced
+row's label is shown and linked; on a form the field searches the referenced resource as the
+operator types, and stores the key.
+
+There is nothing to configure -- pgdesk reads the constraint from the catalog -- but the
+picker only appears when all of the following hold, and quietly falls back to a plain text
+input otherwise:
+
+- the foreign key is **single-column** (a composite key cannot be carried in one field);
+- the referenced table is a **registered resource** (nothing is exposed until you name it,
+  including data reached indirectly through a foreign key);
+- the principal has **`CapView`** on that referenced resource.
+
+Searching is a list query on the referenced resource, served by
+`GET {basePath}/{resource}/options.json?q=`:
+
+- it requires **`CapList`** on the referenced resource and applies that resource's **row
+  scope**, so a picker can never reveal a row the operator could not have listed;
+- it returns at most `WithMaxOptions(n)` rows (default 20) and reports `truncated` so the UI
+  can say "keep typing to narrow" rather than implying the list is complete;
+- it matches the referenced resource's `SearchFields` (falling back to the label column),
+  case-insensitively, with `LIKE` metacharacters escaped. A resource with no text column to
+  match reports `searchable: false`, and the picker says so rather than presenting the
+  unfiltered first page as if those rows were matches;
+- it refuses in JSON, never HTML, so the client can tell "denied" from "no matches".
+
+```go
+pgdesk.WithResource("users", func(r *pgdesk.Resource) {
+    r.LabelColumn("email")        // what the picker shows
+    r.SearchFields("email", "full_name") // what the picker searches
+})
+```
+
+The form field remains a real `<input name="author_id">` carrying the key, so the admin still
+works with JavaScript disabled: the operator sees the current row's label beside the field and
+can type a key by hand. `pgdesk.js` upgrades the input in place into a WAI-ARIA combobox
+(arrow keys, Enter, Escape); it adds no inline script and needs no build step.
+
+To opt a column out of the picker, set any explicit widget on it -- an explicit
+`r.Widget(...)` always wins over the foreign-key default.
+
 ## Bulk actions, CSV export, and durable audit
 
 ```go

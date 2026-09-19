@@ -59,7 +59,8 @@ admin.Mount(mux) // that's it -- the admin is live at /admin/
 ## What you get
 
 CRUD with optimistic concurrency | typed filters, ILIKE search, sortable columns |
-foreign-key labels with per-resource overrides | transactional bulk actions |
+foreign-key pickers: labels on lists and detail, bounded typeahead on forms |
+transactional bulk actions |
 streaming CSV export through the same authorizer | durable in-transaction audit |
 CSRF, nonce'd CSP, clickjacking & open-redirect defenses | readiness probe, hot
 catalog reload, metrics hook | flash messages, dark mode, keyboard shortcuts |
