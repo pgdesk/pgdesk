@@ -7,10 +7,6 @@ import (
 	"testing/fstest"
 )
 
-// TestNewOverridesNamedTemplate proves the escape hatch (Gitea #25): a
-// template present in the override FS replaces the built-in template of the
-// same name, because a later ParseFS of a same-named template re-associates
-// it rather than merging it.
 func TestNewOverridesNamedTemplate(t *testing.T) {
 	base := fstest.MapFS{
 		"greeting.html": &fstest.MapFile{Data: []byte(
@@ -39,10 +35,6 @@ func TestNewOverridesNamedTemplate(t *testing.T) {
 	}
 }
 
-// TestNewNoOverrideKeepsBuiltin is the regression case: with no override FS
-// supplied (the zero-value, variadic-absent call), the embedded/base template
-// renders unchanged. This also proves existing two-argument call sites are
-// unaffected by the added override parameter.
 func TestNewNoOverrideKeepsBuiltin(t *testing.T) {
 	base := fstest.MapFS{
 		"greeting.html": &fstest.MapFile{Data: []byte(
@@ -63,9 +55,6 @@ func TestNewNoOverrideKeepsBuiltin(t *testing.T) {
 	}
 }
 
-// TestNewPartialOverrideFallsBackForUnmatched proves that overriding one
-// template leaves sibling built-in templates intact -- the override is a
-// per-name overlay, not a full replacement of the set.
 func TestNewPartialOverrideFallsBackForUnmatched(t *testing.T) {
 	base := fstest.MapFS{
 		"greeting.html": &fstest.MapFile{Data: []byte(
@@ -100,16 +89,13 @@ func TestNewPartialOverrideFallsBackForUnmatched(t *testing.T) {
 	}
 }
 
-// TestNewMalformedOverrideFailsConstruction proves a malformed override
-// template fails New with an error at construction time -- never a
-// per-request panic (F5).
 func TestNewMalformedOverrideFailsConstruction(t *testing.T) {
 	base := fstest.MapFS{
 		"greeting.html": &fstest.MapFile{Data: []byte(
 			`{{ define "greeting" }}BUILTIN{{ end }}`)},
 	}
 	malformed := fstest.MapFS{
-		// Unclosed action -> parse error.
+
 		"greeting.html": &fstest.MapFile{Data: []byte(
 			`{{ define "greeting" }}{{ .Unclosed`)},
 	}

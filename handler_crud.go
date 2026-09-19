@@ -13,11 +13,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
-// liveResource looks up a registered resource and confirms its table still
-// exists in THIS request's catalog snapshot (D1). If a Reload dropped the table
-// after registration, the request fails closed with "not found" rather than
-// issuing a query against a vanished relation. Using the per-request snapshot
-// (not the live pointer) means a Reload mid-request cannot shift the answer.
 func (a *Admin) liveResource(r *http.Request, name string) (*Resource, bool) {
 	st := stateFromContext(r.Context())
 	if st == nil {
@@ -26,7 +21,6 @@ func (a *Admin) liveResource(r *http.Request, name string) (*Resource, bool) {
 	return st.resource(name)
 }
 
-// visibleColumns returns list/detail columns minus hidden ones.
 func visibleColumns(cols []*introspect.Column, res *Resource) []*introspect.Column {
 	out := make([]*introspect.Column, 0, len(cols))
 	for _, c := range cols {
@@ -38,7 +32,6 @@ func visibleColumns(cols []*introspect.Column, res *Resource) []*introspect.Colu
 	return out
 }
 
-// handleList renders the paginated list view (D3 sort/pagination; F6 clamps).
 func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok {
@@ -61,8 +54,7 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	}
 
 	display := visibleColumns(res.listDisplay, res)
-	// Ensure key columns are fetched so we can build detail links, even if not
-	// shown. fetch = display ++ (keyCols not already in display).
+
 	fetch := append([]*introspect.Column(nil), display...)
 	keyIdx := make([]int, 0, len(res.keyCols))
 	for _, kc := range res.keyCols {
@@ -81,7 +73,7 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 		Search:   lr.search,
 		Sort:     lr.sortCol,
 		SortDesc: lr.sortDesc,
-		Limit:    lr.pageSize + 1, // fetch one extra to detect a next page
+		Limit:    lr.pageSize + 1,
 		Offset:   offset,
 	})
 	if err != nil {
@@ -130,7 +122,6 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 		raw = raw[:lr.pageSize]
 	}
 
-	// Resolve foreign-key labels for the whole page in one query per FK (D4).
 	pageCells := make([][]any, len(raw))
 	for i, rr := range raw {
 		pageCells[i] = rr.cells
@@ -175,7 +166,6 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	a.renderPage(w, r, http.StatusOK, "list", data)
 }
 
-// handleDetail renders a single row (D6 key decode; O6 CapView).
 func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok {
@@ -227,8 +217,6 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 	a.renderPage(w, r, http.StatusOK, "detail", data)
 }
 
-// handleEditForm renders the edit form pre-filled from the current row (O6
-// CapUpdate; O1 loads the version token).
 func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok || !res.canUpdate() {
@@ -266,9 +254,6 @@ func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 	a.renderPage(w, r, http.StatusOK, "form", data)
 }
 
-// handleUpdate applies an optimistic-concurrency UPDATE in a transaction, with
-// audit in the same tx (O4), CSRF (D5), pg-error mapping (D7), and the 0-rows
-// conflict path (O1).
 func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok || !res.canUpdate() {
@@ -284,7 +269,6 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Bound the body before touching it (F6), then verify CSRF (D5).
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.maxBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		a.renderError(w, r, http.StatusBadRequest, "The submitted form was invalid or too large.")
@@ -309,8 +293,7 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	for i, c := range editable {
 		setVals[i] = formValueForColumn(r, c)
 	}
-	// Pin equality-scoped columns to their scope value so a scoped operator cannot
-	// move a row out of their scope by editing it (O6).
+
 	setCols, setVals := enforceScope(editable, setVals, scope)
 	returning := res.table.Columns()
 
@@ -345,19 +328,13 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Success: redirect to the detail page (F4 keeps this under the base path).
 	dest := a.safeRedirect(a.cfg.basePath + "/" + res.name + "/" + r.PathValue("key"))
 	a.setFlash(w, "info", res.Label+" saved.")
 	http.Redirect(w, r, dest, http.StatusSeeOther)
 }
 
-// errConflict signals the O1 lost-update guard tripped (0 rows affected).
 var errConflict = errors.New("pgdesk: optimistic concurrency conflict")
 
-// withTx runs fn inside a single transaction with a SET LOCAL statement_timeout
-// backstop (O2). It commits on success and rolls back on any error or panic, so
-// no partial write escapes a cancelled or failed request (O3). The host owns the
-// pool; this owns only the transaction.
 func (a *Admin) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	tx, err := a.db.BeginTx(ctx, pgx.TxOptions{})
 	if err != nil {
@@ -369,7 +346,7 @@ func (a *Admin) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
 			_ = tx.Rollback(ctx)
 		}
 	}()
-	// Statement-timeout backstop. The value is our own integer, never user input.
+
 	ms := a.cfg.queryTimeout.Milliseconds()
 	if _, err := tx.Exec(ctx, "SET LOCAL statement_timeout = "+strconv.FormatInt(ms, 10)); err != nil {
 		return err
@@ -384,8 +361,6 @@ func (a *Admin) withTx(ctx context.Context, fn func(pgx.Tx) error) error {
 	return nil
 }
 
-// bestEffortAudit runs the out-of-band audit logger after a successful commit. A
-// failure is logged but never affects the response (O4 documents the tradeoff).
 func (a *Admin) bestEffortAudit(ctx context.Context, ev AuditEvent) {
 	if a.cfg.audit == nil {
 		return
@@ -395,16 +370,10 @@ func (a *Admin) bestEffortAudit(ctx context.Context, ev AuditEvent) {
 	}
 }
 
-// execUpdateTx runs the UPDATE and audit in one transaction (O4). A 0-row result
-// is ambiguous: the row may have changed under us (O1), or it may lie outside the
-// principal's scope (O6). rowInScope tells the two apart on the failure path only,
-// inside the same transaction, so a forbidden edit reports 404 rather than telling
-// the operator to reload and retry forever.
 func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any, scope []query.Filter, setCols []*introspect.Column, setVals []any) (map[string]any, error) {
 	var after map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
-		// In the same transaction as the write, so no row can leave the
-		// principal's scope between the check and the UPDATE.
+
 		if err := a.checkFKScope(ctx, tx, r, res, setCols, setVals); err != nil {
 			return err
 		}
@@ -423,7 +392,7 @@ func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource
 		if a.cfg.txAudit != nil {
 			ev := a.buildAuditEvent(r, res, AuditUpdate, keyVals, nil, after)
 			if err := a.cfg.txAudit.LogAuditTx(ctx, tx, ev); err != nil {
-				return err // audit failure rolls back the mutation
+				return err
 			}
 		}
 		return nil
@@ -435,7 +404,6 @@ func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource
 	return after, nil
 }
 
-// fetchRow loads a single row's columns plus its version token (O1).
 func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Column, keyVals []any, scope []query.Filter) (map[string]any, string, error) {
 	sql, args, err := query.SelectRow(res.table, cols, res.keyCols, keyVals, res.versionStrategy(), scope)
 	if err != nil {
@@ -458,7 +426,7 @@ func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Colu
 	if err != nil {
 		return nil, "", err
 	}
-	// First selected column is the version token (SelectRow prepends it).
+
 	version := ""
 	if len(vals) > 0 {
 		version = FormatVersion(vals[0])
@@ -472,8 +440,6 @@ func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Colu
 
 var errNotFound = errors.New("pgdesk: row not found")
 
-// withScope returns the request filters ANDed with the principal's row
-// constraints, without aliasing either input.
 func withScope(filters, scope []query.Filter) []query.Filter {
 	if len(scope) == 0 {
 		return filters
@@ -483,16 +449,6 @@ func withScope(filters, scope []query.Filter) []query.Filter {
 	return append(out, scope...)
 }
 
-// enforceScope pins every equality-scoped column to its constraint value on a
-// write, overriding whatever the operator submitted and adding the column if it
-// was absent. This makes INSERT and UPDATE obey the same row scope the WHERE
-// clause enforces on reads: a scoped operator can neither create a row outside
-// their scope nor move one out of it.
-//
-// Only equality (Eq) constraints pin a value. A Ne or In constraint has no single
-// value to write, so it is left to the read/WHERE side (which still stops an
-// UPDATE from targeting an out-of-scope row); a host that must also stop such a
-// column from being written marks it Readonly. Inputs are not aliased.
 func enforceScope(cols []*introspect.Column, vals []any, scope []query.Filter) ([]*introspect.Column, []any) {
 	outCols := append([]*introspect.Column(nil), cols...)
 	outVals := append([]any(nil), vals...)
@@ -515,12 +471,6 @@ func enforceScope(cols []*introspect.Column, vals []any, scope []query.Filter) (
 	return outCols, outVals
 }
 
-// zeroRowReason explains why a scoped UPDATE or DELETE matched nothing. It probes
-// for the row within scope but WITHOUT the version guard: a row that still does
-// not appear is one the principal cannot reach (404, which also refuses to
-// confirm the row exists); a row that does appear was changed by someone else
-// (409). The probe runs only after the mutation has already failed, in the same
-// transaction, so its answer cannot go stale.
 func (a *Admin) zeroRowReason(ctx context.Context, tx pgx.Tx, res *Resource, keyVals []any, scope []query.Filter) error {
 	sql, args, err := query.ExistsRow(res.table, res.keyCols, keyVals, scope)
 	if err != nil {
@@ -544,7 +494,6 @@ func (a *Admin) handleFetchError(w http.ResponseWriter, r *http.Request, err err
 	a.dbError(w, r, "fetch row", err)
 }
 
-// runQuery executes a read query with metrics timing (O5).
 func (a *Admin) runQuery(ctx context.Context, op, sql string, args []any) (pgx.Rows, error) {
 	start := time.Now()
 	rows, err := a.db.Query(ctx, sql, args...)
@@ -552,8 +501,6 @@ func (a *Admin) runQuery(ctx context.Context, op, sql string, args []any) (pgx.R
 	return rows, err
 }
 
-// serverError logs full detail server-side (keyed by request ID) and renders a
-// generic 500 -- internals never reach the browser (F5).
 func (a *Admin) serverError(w http.ResponseWriter, r *http.Request, stage string, err error) {
 	LoggerFromContext(r.Context()).Error("pgdesk: request failed",
 		"stage", stage, "error", err, "request_id", RequestIDFromContext(r.Context()))

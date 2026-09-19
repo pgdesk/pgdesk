@@ -8,10 +8,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
-// The D3 invariant under test everywhere in this file: a request-supplied
-// identifier either resolves to a catalog column or is rejected -- it is never
-// emitted as raw SQL.
-
 func TestIdentQuoting(t *testing.T) {
 	cases := map[string]string{
 		"email":         `"email"`,
@@ -19,7 +15,7 @@ func TestIdentQuoting(t *testing.T) {
 		`a"b`:           `"a""b"`,
 		`"; drop`:       `"""; drop"`,
 		`col";--`:       `"col"";--"`,
-		"weird\x00name": "\"weird\x00name\"", // NUL survives quoting; never reaches here for real cols
+		"weird\x00name": "\"weird\x00name\"",
 	}
 	for in, want := range cases {
 		if got := Ident(in); got != want {
@@ -58,8 +54,6 @@ func TestResolveColumnResolvesRealColumns(t *testing.T) {
 	}
 }
 
-// TestResolveColumnRejectsAdversarial is the core D3 assertion: injection-shaped
-// identifiers resolve to rejection, never to a column.
 func TestResolveColumnRejectsAdversarial(t *testing.T) {
 	tbl := testTable()
 	adversarial := []string{
@@ -72,11 +66,11 @@ func TestResolveColumnRejectsAdversarial(t *testing.T) {
 		"email/*",
 		"prefs->>'x'",
 		"id::text",
-		"EMAIL",   // case-sensitive: not the real column
-		" email ", // whitespace padding
+		"EMAIL",
+		" email ",
 		"email\x00",
-		"\u0442\u0435\u0441\u0442", // unicode
-		"e\u2019",                  // unicode quote
+		"\u0442\u0435\u0441\u0442",
+		"e\u2019",
 		"1",
 		"*",
 		"count(*)",
@@ -98,7 +92,6 @@ func TestResolveColumnNilTable(t *testing.T) {
 	}
 }
 
-// TestOperatorWhitelistByCategory is the table-driven category x operator matrix.
 func TestOperatorWhitelistByCategory(t *testing.T) {
 	all := []Operator{OpEq, OpILike, OpIn, OpLt, OpGt, OpBetween, OpIsNull}
 	want := map[introspect.TypeCategory]map[Operator]bool{
@@ -134,8 +127,6 @@ func TestParseOperatorRejectsGarbage(t *testing.T) {
 	}
 }
 
-// TestEnumFilterValuesValidated confirms enum labels are checked against the
-// catalog set (D3): a value not in the enum is rejected.
 func TestEnumFilterValuesValidated(t *testing.T) {
 	tbl := testTable()
 	status := col(tbl, "status")
@@ -149,8 +140,6 @@ func TestEnumFilterValuesValidated(t *testing.T) {
 	}
 }
 
-// TestBuildersNeverEmitRequestStrings compiles a row select and update and
-// asserts the SQL contains only quoted catalog identifiers and $N placeholders.
 func TestBuildRowAndUpdateAreParameterized(t *testing.T) {
 	tbl := testTable()
 	cols := tbl.Columns()

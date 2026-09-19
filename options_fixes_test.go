@@ -13,8 +13,6 @@ import (
 	"github.com/jackc/pgx/v5/pgconn"
 )
 
-// --- #18: WithBasePath validation (ErrUnsafeBasePath) ---
-
 func TestIsSafeBasePath(t *testing.T) {
 	cases := []struct {
 		name string
@@ -45,10 +43,6 @@ func TestIsSafeBasePath(t *testing.T) {
 	}
 }
 
-// stubDB is a minimal DB implementation used only to prove NewWithDB rejects
-// an unsafe base path before ever touching the database -- construction fails
-// during option validation, ahead of introspection, so every method here can
-// safely be left unimplemented.
 type stubDB struct{}
 
 func (stubDB) BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error) {
@@ -79,9 +73,7 @@ func TestNewWithDBRejectsUnsafeBasePath(t *testing.T) {
 }
 
 func TestNewWithDBAcceptsSafeBasePath_ProceedsPastValidation(t *testing.T) {
-	// A safe base path should sail past the basePath check and fail later, on
-	// introspection against the non-functional stub -- proving the rejection
-	// above was specifically about the base path, not an incidental failure.
+
 	_, err := NewWithDB(stubDB{}, WithBasePath("/admin"))
 	if err == nil {
 		t.Fatal("expected an error from the non-functional stub DB, got nil")
@@ -91,20 +83,12 @@ func TestNewWithDBAcceptsSafeBasePath_ProceedsPastValidation(t *testing.T) {
 	}
 }
 
-// --- #29: DB interface no longer requires Begin ---
-
-// This is a compile-time assertion: if Begin were still part of the DB
-// interface, stubDB (which does not implement it) would fail to satisfy DB
-// and the package would not build.
 var _ DB = stubDB{}
-
-// --- #20: missing Authorizer is logged, not silent ---
 
 func TestLogExposureWarnsWhenNoAuthorizerAndResourcesExposed(t *testing.T) {
 	var buf bytes.Buffer
 	a := &Admin{cfg: defaultConfig()}
 	a.cfg.logger = slog.New(slog.NewTextHandler(&buf, nil))
-	// authorizer left nil (deny-all default)
 
 	st := &adminState{
 		catalog:   syntheticCatalog(),
@@ -162,7 +146,7 @@ func TestLogExposureNoWarnWhenAuthorizerConfigured(t *testing.T) {
 
 func TestLogExposureWarnsOnOversizedPageSize(t *testing.T) {
 	var buf bytes.Buffer
-	a := &Admin{cfg: defaultConfig()} // default maxPageSize is 200
+	a := &Admin{cfg: defaultConfig()}
 	a.cfg.logger = slog.New(slog.NewTextHandler(&buf, nil))
 	a.cfg.authorizer = AuthorizerFunc(func(ctx context.Context, attrs Attributes) (Decision, error) {
 		return Allow, nil
@@ -180,8 +164,6 @@ func TestLogExposureWarnsOnOversizedPageSize(t *testing.T) {
 		t.Errorf("expected an oversized-PageSize WARN, got log:\n%s", out)
 	}
 }
-
-// --- #26: numeric options warn instead of silently no-op-ing ---
 
 func TestWithQueryTimeoutIgnoresNonPositive(t *testing.T) {
 	c := defaultConfig()
@@ -269,8 +251,6 @@ func TestWithSchemasIgnoresEmptyCall(t *testing.T) {
 	}
 }
 
-// --- #30: WithMaxBulk ---
-
 func TestWithMaxBulkAcceptsPositive(t *testing.T) {
 	c := defaultConfig()
 	WithMaxBulk(42)(c)
@@ -294,14 +274,10 @@ func TestWithMaxBulkIgnoresNonPositive(t *testing.T) {
 	}
 }
 
-// --- newAdmin emits accumulated option-warning notes once the logger resolves ---
-
 func TestNewWithDBEmitsIgnoredOptionWarningsAfterLoggerResolves(t *testing.T) {
 	var buf bytes.Buffer
 	logger := slog.New(slog.NewTextHandler(&buf, nil))
 
-	// WithLogger is applied after the ignoring options; the warning must still
-	// reach it, proving notes are emitted only once every option has run.
 	_, err := NewWithDB(stubDB{},
 		WithMaxBulk(0),
 		WithLogger(logger),

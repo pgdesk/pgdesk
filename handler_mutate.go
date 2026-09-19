@@ -10,8 +10,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
-// editAction and createAction build the form POST targets (absolute, under the
-// base path -- F4 keeps redirects derived from these safe).
 func (a *Admin) editAction(res *Resource, key string) string {
 	return a.cfg.basePath + "/" + res.name + "/" + key + "/edit"
 }
@@ -20,13 +18,6 @@ func (a *Admin) createAction(res *Resource) string {
 	return a.cfg.basePath + "/" + res.name + "/new"
 }
 
-// dbError classifies a database error. A deadline (our per-request timeout, which
-// also fires when the pool is saturated because acquisition respects the context)
-// becomes a 503 with Retry-After rather than an indefinite hang or a 500 (O2).
-// Everything else is a logged generic 500 (F5).
-// isDeadline reports whether err is a request deadline or cancellation, which
-// pool saturation also surfaces as. Both the HTML and JSON error paths classify
-// it as a retryable 503 rather than a server fault.
 func isDeadline(err error) bool {
 	return errors.Is(err, context.DeadlineExceeded) || errors.Is(err, context.Canceled)
 }
@@ -42,8 +33,6 @@ func (a *Admin) dbError(w http.ResponseWriter, r *http.Request, stage string, er
 	a.serverError(w, r, stage, err)
 }
 
-// newKeySegment extracts the resource's key values from a RETURNING row map and
-// encodes them into a URL segment (D6), for redirecting to a newly-created row.
 func newKeySegment(res *Resource, row map[string]any) (string, bool) {
 	if !res.hasKey() || row == nil {
 		return "", false
@@ -63,8 +52,6 @@ func newKeySegment(res *Resource, row map[string]any) (string, bool) {
 	return seg, true
 }
 
-// handleCreateForm renders an empty create form (O6 CapCreate; D6 requires the
-// resource be writable).
 func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok || !res.canCreate() {
@@ -85,8 +72,6 @@ func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 	a.renderPage(w, r, http.StatusOK, "form", data)
 }
 
-// handleCreate inserts a new row in a transaction with audit (O4), CSRF (D5), and
-// pg-error mapping (D7), then redirects to the new row's detail page.
 func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok || !res.canCreate() {
@@ -116,8 +101,7 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 	setCols := make([]*introspect.Column, 0, len(editable))
 	setVals := make([]any, 0, len(editable))
 	for _, c := range editable {
-		// Skip columns the operator left empty that have a default, so the DB
-		// default (e.g. now(), nextval) applies instead of an explicit NULL.
+
 		if !r.PostForm.Has(c.Name) && c.Category != introspect.CatBool {
 			if c.HasDefault {
 				continue
@@ -126,8 +110,7 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 		setCols = append(setCols, c)
 		setVals = append(setVals, formValueForColumn(r, c))
 	}
-	// Pin equality-scoped columns to their scope value so a scoped operator cannot
-	// create a row outside their scope (O6).
+
 	setCols, setVals = enforceScope(setCols, setVals, scope)
 	returning := res.table.Columns()
 
@@ -163,12 +146,10 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.safeRedirect(a.cfg.basePath+"/"+res.name), http.StatusSeeOther)
 }
 
-// execInsertTx runs the INSERT and audit in one transaction (O4).
 func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, setCols []*introspect.Column, setVals []any) (map[string]any, error) {
 	var after map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
-		// In the same transaction as the write, so no row can leave the
-		// principal's scope between the check and the INSERT.
+
 		if err := a.checkFKScope(ctx, tx, r, res, setCols, setVals); err != nil {
 			return err
 		}
@@ -196,15 +177,10 @@ func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource
 	return after, nil
 }
 
-// unavailableSelection turns a scope violation into the same inline field error a
-// database validation failure produces, so the operator sees one consistent
-// message and learns nothing about the row they could not reach.
 func unavailableSelection(e *fkScopeError) mappedError {
 	return mappedError{fieldErrors: map[string]string{e.column: "is not an available selection"}}
 }
 
-// renderCreateWithErrors re-renders the create form after a DB validation error
-// (D7), preserving the operator's submitted values.
 func (a *Admin) renderCreateWithErrors(w http.ResponseWriter, r *http.Request, res *Resource, me mappedError) {
 	display := visibleColumns(res.table.Columns(), res)
 	fields := a.buildFormFields(r, res, display, map[string]any{}, me.fieldErrors)
@@ -220,8 +196,6 @@ func (a *Admin) renderCreateWithErrors(w http.ResponseWriter, r *http.Request, r
 	a.renderPage(w, r, http.StatusUnprocessableEntity, "form", data)
 }
 
-// handleDelete deletes a row in a transaction with audit (O4), CSRF (D5), then
-// redirects to the list. A 0-row delete (already gone) is treated as success.
 func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok || !res.canDelete() {
@@ -271,7 +245,7 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 			a.dbError(w, r, "delete", delErr)
 			return
 		}
-		// A constraint (e.g. FK restrict) blocked the delete; surface on the detail.
+
 		a.renderError(w, r, http.StatusConflict, "This record cannot be deleted because other records depend on it.")
 		return
 	}
@@ -279,11 +253,6 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.safeRedirect(a.cfg.basePath+"/"+res.name), http.StatusSeeOther)
 }
 
-// execDeleteTx runs the DELETE and audit in one transaction (O4). The RETURNING
-// row is the before-snapshot. A 0-row delete means the row does not exist for this
-// principal -- already gone, or outside their scope (O6) -- and reports errNotFound
-// rather than a success the operator did not get. The two are deliberately
-// indistinguishable so the response cannot be used to probe for rows.
 func (a *Admin) execDeleteTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any) error {
 	var before map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {

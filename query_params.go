@@ -11,29 +11,20 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
-// errBadRequest signals a malformed or disallowed list parameter. It maps to a
-// 400 and never leaks which internal check failed (F5). Every list parameter is
-// validated against the catalog and the resource's declared filter/sort sets
-// before any query runs (D3, fail-closed).
 var errBadRequest = errors.New("pgdesk: bad list request")
 
-// listRequest is the parsed, validated shape of a list-view request.
 type listRequest struct {
 	filters  []query.Filter
 	search   *query.SearchSpec
 	sortCol  *introspect.Column
 	sortDesc bool
-	sortKey  string // raw sort spec echoed into header links ("" = resource default)
+	sortKey  string
 	page     int
 	pageSize int
-	q        string            // raw search term (for the search box)
-	rawFltr  map[string]string // filter param key -> raw value, for form repopulation
+	q        string
+	rawFltr  map[string]string
 }
 
-// parseListRequest resolves and validates all list parameters. Filter columns
-// must be in the resource's declared Filters set; sort columns must be shown in
-// the list; operators must pass the type-category whitelist; values must parse
-// to their column type. Any violation returns errBadRequest (400).
 func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, error) {
 	q := r.URL.Query()
 	lr := &listRequest{
@@ -42,7 +33,6 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 	}
 	lr.pageSize = a.clampPageSize(parsePageSize(q.Get("page_size"), res.pageSize))
 
-	// Search across the resource's text search fields.
 	if term := strings.TrimSpace(q.Get("q")); term != "" {
 		cols := textColumns(res.searchFields)
 		if len(cols) > 0 {
@@ -51,7 +41,6 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 		}
 	}
 
-	// Filters: iterate f_* params in a stable order for deterministic SQL.
 	allowed := columnSet(res.filters)
 	var keys []string
 	for k := range q {
@@ -63,12 +52,12 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 	for _, key := range keys {
 		raw := strings.TrimSpace(q.Get(key))
 		if raw == "" {
-			continue // an empty filter input is simply not applied
+			continue
 		}
 		colName, opToken := splitFilterKey(key[len("f_"):])
 		col, ok := allowed[colName]
 		if !ok {
-			return nil, errBadRequest // unknown or non-filterable column
+			return nil, errBadRequest
 		}
 		f, err := buildFilter(col, opToken, raw)
 		if err != nil {
@@ -78,7 +67,6 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 		lr.rawFltr[key] = raw
 	}
 
-	// Sort: only columns shown in the list are sortable.
 	if spec := q.Get("sort"); spec != "" {
 		name, desc := spec, false
 		if strings.HasPrefix(spec, "-") {
@@ -96,8 +84,6 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 	return lr, nil
 }
 
-// buildFilter validates the operator against the column's type category and
-// parses the value(s) to the column type (D3). All values become $N.
 func buildFilter(col *introspect.Column, opToken, raw string) (query.Filter, error) {
 	op, err := query.ParseOperator(col, opToken)
 	if err != nil {
@@ -143,7 +129,7 @@ func buildFilter(col *introspect.Column, opToken, raw string) (query.Filter, err
 		return query.Filter{Col: col, Op: op, Values: []any{b}}, nil
 	case query.OpILike:
 		return query.Filter{Col: col, Op: op, Values: []any{"%" + escapeLike(raw) + "%"}}, nil
-	default: // eq, lt, gt
+	default:
 		v, err := query.ParseScalar(col, raw)
 		if err != nil {
 			return query.Filter{}, err
@@ -152,27 +138,16 @@ func buildFilter(col *introspect.Column, opToken, raw string) (query.Filter, err
 	}
 }
 
-// likeEscaper neutralizes the LIKE/ILIKE metacharacters so a search or text
-// filter term matches literally. Backslash is escaped FIRST (it is the default
-// LIKE escape character), then % and _, which the emitted "col ILIKE $n" treats
-// as wildcards. This is a semantic fix, not injection prevention -- the value
-// still binds as $N -- but without it "50%" matches unintended rows and a
-// trailing backslash raises Postgres 22025. The default backslash escape is
-// active, so no explicit ESCAPE clause is needed.
 var likeEscaper = strings.NewReplacer(
 	`\`, `\\`,
 	`%`, `\%`,
 	`_`, `\_`,
 )
 
-// escapeLike escapes LIKE metacharacters in a term before it is wrapped with
-// %...% for an ILIKE match.
 func escapeLike(s string) string {
 	return likeEscaper.Replace(s)
 }
 
-// splitFilterKey splits "col__op" into (col, op), defaulting op to "eq". It uses
-// the last "__" so single-underscore column names (created_at) are preserved.
 func splitFilterKey(rest string) (col, op string) {
 	if i := strings.LastIndex(rest, "__"); i >= 0 {
 		return rest[:i], rest[i+2:]
@@ -180,8 +155,6 @@ func splitFilterKey(rest string) (col, op string) {
 	return rest, "eq"
 }
 
-// parsePageSize parses ?page_size, falling back to the resource default. The hard
-// maximum is applied separately by clampPageSize (F6).
 func parsePageSize(s string, def int) int {
 	n, err := strconv.Atoi(s)
 	if err != nil || n < 1 {
@@ -190,7 +163,6 @@ func parsePageSize(s string, def int) int {
 	return n
 }
 
-// columnSet indexes columns by name for O(1) membership checks.
 func columnSet(cols []*introspect.Column) map[string]*introspect.Column {
 	m := make(map[string]*introspect.Column, len(cols))
 	for _, c := range cols {
@@ -199,8 +171,6 @@ func columnSet(cols []*introspect.Column) map[string]*introspect.Column {
 	return m
 }
 
-// textColumns keeps only text-category columns, so ILIKE search never targets a
-// column type it cannot match.
 func textColumns(cols []*introspect.Column) []*introspect.Column {
 	var out []*introspect.Column
 	for _, c := range cols {

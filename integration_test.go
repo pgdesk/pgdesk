@@ -1,14 +1,5 @@
 //go:build integration
 
-// Package pgdesk_test integration suite (O7). It runs only with the `integration`
-// build tag and a live PostgreSQL reachable via PGDESK_TEST_DSN:
-//
-//	go test -tags=integration -race ./...
-//
-// It exercises the real product against a real database: introspection of every
-// core type category, the list->detail->edit->save flow, the xmin lost-update
-// conflict (O1), type-aware fail-closed key decoding (D6), the SQLSTATE error
-// mapping (D7), and CSRF enforcement (D5). Nothing about Postgres is mocked.
 package pgdesk_test
 
 import (
@@ -135,7 +126,6 @@ func setup(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 	return admin, pool
 }
 
-// activateUsers is a bulk action used by the integration tests.
 func activateUsers(ctx context.Context, tx pgx.Tx, keys pgdesk.Keys) (string, error) {
 	ids, err := keys.Int64s()
 	if err != nil {
@@ -169,7 +159,7 @@ func TestIntegrationListAndDetail(t *testing.T) {
 	if !strings.Contains(rec.Body.String(), "ada@example.com") {
 		t.Fatalf("list missing seeded row:\n%s", rec.Body.String())
 	}
-	// Security headers present (F2/F3).
+
 	if rec.Header().Get("Content-Security-Policy") == "" {
 		t.Error("missing CSP header")
 	}
@@ -185,14 +175,13 @@ func TestIntegrationListAndDetail(t *testing.T) {
 
 func TestIntegrationKeyDecodeFailsClosed(t *testing.T) {
 	admin, _ := setup(t)
-	// A non-numeric key for a bigint PK must be a 400, never a 500 (D6).
+
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users/"+url.PathEscape("'; drop table it_users"), nil))
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("bad key status = %d, want 400", rec.Code)
 	}
 }
 
-// editToken fetches the edit form and returns (cookieToken, version).
 func editToken(t *testing.T, admin *pgdesk.Admin, id string) (string, string) {
 	t.Helper()
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users/"+id+"/edit", nil))
@@ -246,7 +235,6 @@ func TestIntegrationOptimisticConflict(t *testing.T) {
 	admin, _ := setup(t)
 	token, staleVersion := editToken(t, admin, "1")
 
-	// First update consumes the version, bumping xmin.
 	f1 := url.Values{}
 	f1.Set("email", "ada.v1@example.com")
 	f1.Set("status", "active")
@@ -254,7 +242,6 @@ func TestIntegrationOptimisticConflict(t *testing.T) {
 		t.Fatalf("first update status = %d, want 303", rec.Code)
 	}
 
-	// Second update with the now-stale version must 409 (O1).
 	f2 := url.Values{}
 	f2.Set("email", "ada.v2@example.com")
 	f2.Set("status", "pending")
@@ -271,8 +258,6 @@ func TestIntegrationDuplicateKeyMapped(t *testing.T) {
 	admin, _ := setup(t)
 	token, version := editToken(t, admin, "1")
 
-	// Set row 1's email to row 2's -> 23505 unique_violation mapped to a field
-	// error, re-rendered form (D7), status 422.
 	form := url.Values{}
 	form.Set("email", "alan@example.com")
 	form.Set("status", "active")
@@ -280,8 +265,7 @@ func TestIntegrationDuplicateKeyMapped(t *testing.T) {
 	if rec.Code != http.StatusUnprocessableEntity {
 		t.Fatalf("duplicate status = %d, want 422\n%s", rec.Code, rec.Body.String())
 	}
-	// With unique-constraint introspection (Phase 2), 23505 attaches "must be
-	// unique" to the specific field (D7).
+
 	body := rec.Body.String()
 	if !strings.Contains(body, "must be unique") {
 		t.Fatalf("missing per-field unique error:\n%s", body)
@@ -291,7 +275,6 @@ func TestIntegrationDuplicateKeyMapped(t *testing.T) {
 	}
 }
 
-// setupWith builds an admin from the given options after loading the schema.
 func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
 	t.Helper()
 	dsn := os.Getenv("PGDESK_TEST_DSN")
@@ -323,12 +306,9 @@ func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Poo
 	return admin, pool
 }
 
-// TestIntegrationAutoRegister proves D2: auto-registration exposes keyed tables,
-// honors the exclude list, skips keyless tables, and is driven entirely from the
-// catalog (no explicit Resource calls).
 func TestIntegrationAutoRegister(t *testing.T) {
 	admin, _ := setupWith(t, pgdesk.WithAutoRegister(pgdesk.ExcludeTables("it_audit")))
-	// Force build (Mount finalizes the resource set).
+
 	mux := http.NewServeMux()
 	admin.Mount(mux)
 
@@ -337,7 +317,7 @@ func TestIntegrationAutoRegister(t *testing.T) {
 		t.Fatalf("index status = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	// Match exact hrefs (a substring check would confuse it_audit / it_audit_log).
+
 	if !strings.Contains(body, `href="/admin/it_users"`) {
 		t.Fatalf("auto-register did not expose it_users:\n%s", body)
 	}
@@ -347,25 +327,21 @@ func TestIntegrationAutoRegister(t *testing.T) {
 	if strings.Contains(body, `href="/admin/it_nopk"`) {
 		t.Fatalf("keyless table it_nopk should have been skipped:\n%s", body)
 	}
-	// The exposed resource is reachable.
+
 	if rec := do(admin, httptest.NewRequest("GET", "/admin/it_users", nil)); rec.Code != 200 {
 		t.Fatalf("auto-registered list status = %d", rec.Code)
 	}
-	// The excluded table is not routable.
+
 	if rec := do(admin, httptest.NewRequest("GET", "/admin/it_audit", nil)); rec.Code != http.StatusNotFound {
 		t.Fatalf("excluded table status = %d, want 404", rec.Code)
 	}
 }
 
-// TestIntegrationReloadRebuildsResources proves D1: Reload rebuilds resources
-// against the new catalog, so a schema change (a new column) is reflected without
-// reconstructing the Admin.
 func TestIntegrationReloadRebuildsResources(t *testing.T) {
-	admin, pool := setup(t) // registers it_users with default detail columns
+	admin, pool := setup(t)
 	mux := http.NewServeMux()
 	admin.Mount(mux)
 
-	// The new column must not exist yet in the edit form.
 	if _, ver := editToken(t, admin, "1"); ver == "" {
 		t.Fatal("expected a version token")
 	}
@@ -386,9 +362,6 @@ func TestIntegrationReloadRebuildsResources(t *testing.T) {
 	}
 }
 
-// TestIntegrationDomainOverEnum proves D3 domain resolution: a column typed as a
-// DOMAIN over an enum is classified as an enum, so its form widget is a <select>
-// populated with the enum labels.
 func TestIntegrationDomainOverEnum(t *testing.T) {
 	admin, _ := setupWith(t, pgdesk.WithAutoRegister(pgdesk.ExcludeTables("it_audit")))
 	mux := http.NewServeMux()
@@ -410,7 +383,7 @@ func TestIntegrationDomainOverEnum(t *testing.T) {
 }
 
 func TestIntegrationSearch(t *testing.T) {
-	admin, _ := setup(t) // it_users has SearchFields(email, full_name)
+	admin, _ := setup(t)
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users?q=Lovelace", nil))
 	if rec.Code != 200 {
 		t.Fatalf("search status = %d", rec.Code)
@@ -425,7 +398,7 @@ func TestIntegrationSearch(t *testing.T) {
 }
 
 func TestIntegrationFilterEnum(t *testing.T) {
-	admin, _ := setup(t) // it_users has Filters(status, created_at)
+	admin, _ := setup(t)
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users?f_status=active", nil))
 	if rec.Code != 200 {
 		t.Fatalf("filter status = %d", rec.Code)
@@ -434,7 +407,7 @@ func TestIntegrationFilterEnum(t *testing.T) {
 	if !strings.Contains(body, "ada@example.com") || strings.Contains(body, "alan@example.com") {
 		t.Fatalf("enum filter did not restrict to active:\n%s", body)
 	}
-	// An invalid enum filter value fails closed (D3).
+
 	if rec := do(admin, httptest.NewRequest("GET", "/admin/it_users?f_status=bogus", nil)); rec.Code != http.StatusBadRequest {
 		t.Fatalf("invalid filter status = %d, want 400", rec.Code)
 	}
@@ -450,7 +423,7 @@ func TestIntegrationSort(t *testing.T) {
 	if strings.Index(desc, "alan@example.com") > strings.Index(desc, "ada@example.com") {
 		t.Fatal("descending email sort should place alan before ada")
 	}
-	// A non-displayed sort column fails closed (D3).
+
 	if rec := do(admin, httptest.NewRequest("GET", "/admin/it_users?sort=is_admin", nil)); rec.Code != http.StatusBadRequest {
 		t.Fatalf("sort by hidden column status = %d, want 400", rec.Code)
 	}
@@ -460,14 +433,12 @@ func TestIntegrationPageSizeClampedAndPaged(t *testing.T) {
 	admin, _ := setup(t)
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1", nil))
 	body := rec.Body.String()
-	// Two users seeded; page size 1 -> a Next link must appear.
+
 	if !strings.Contains(body, "Next") {
 		t.Fatalf("expected pagination Next link at page_size=1:\n%s", body)
 	}
 }
 
-// TestIntegrationFKLabels proves D4: a foreign-key column renders the referenced
-// row's label (via one batched ANY($1) lookup) and links to its detail page.
 func TestIntegrationFKLabels(t *testing.T) {
 	admin, _ := setupWith(t, pgdesk.WithAutoRegister(pgdesk.ExcludeTables("it_audit")))
 	mux := http.NewServeMux()
@@ -478,7 +449,7 @@ func TestIntegrationFKLabels(t *testing.T) {
 		t.Fatalf("orders list status = %d\n%s", rec.Code, rec.Body.String())
 	}
 	body := rec.Body.String()
-	// user_id 1 -> ada's label (email, the first text column) linked to her detail.
+
 	if !strings.Contains(body, `href="/admin/it_users/1"`) {
 		t.Fatalf("FK cell should link to referenced detail:\n%s", body)
 	}
@@ -487,7 +458,6 @@ func TestIntegrationFKLabels(t *testing.T) {
 	}
 }
 
-// createToken fetches the create form and returns its CSRF cookie token.
 func createToken(t *testing.T, admin *pgdesk.Admin) string {
 	t.Helper()
 	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users/new", nil))
@@ -512,7 +482,7 @@ func TestIntegrationCreate(t *testing.T) {
 	form.Set("email", "grace@example.com")
 	form.Set("full_name", "Grace Hopper")
 	form.Set("status", "active")
-	// id/created_at are readonly/generated -> omitted; DB defaults apply.
+
 	rec := postForm(admin, "/admin/it_users/new", token, form)
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("create status = %d, want 303\n%s", rec.Code, rec.Body.String())
@@ -536,7 +506,7 @@ func TestIntegrationCreateDuplicateMapped(t *testing.T) {
 	admin, _ := setup(t)
 	token := createToken(t, admin)
 	form := url.Values{}
-	form.Set("email", "ada@example.com") // already exists
+	form.Set("email", "ada@example.com")
 	form.Set("status", "active")
 	rec := postForm(admin, "/admin/it_users/new", token, form)
 	if rec.Code != http.StatusUnprocessableEntity {
@@ -549,7 +519,7 @@ func TestIntegrationCreateDuplicateMapped(t *testing.T) {
 
 func TestIntegrationDelete(t *testing.T) {
 	admin, pool := setup(t)
-	// Insert an unreferenced user so the delete isn't blocked by an FK.
+
 	var id int64
 	if err := pool.QueryRow(context.Background(),
 		"INSERT INTO it_users(email,status) VALUES('temp@example.com','active') RETURNING id").Scan(&id); err != nil {
@@ -575,8 +545,6 @@ func TestIntegrationDelete(t *testing.T) {
 	}
 }
 
-// TestIntegrationDeleteBlockedByFK proves a foreign-key-restricted delete surfaces
-// a clean 409 rather than a 500 (D7): user 1 is referenced by it_orders.
 func TestIntegrationDeleteBlockedByFK(t *testing.T) {
 	admin, _ := setup(t)
 	token, _ := editToken(t, admin, "1")
@@ -598,7 +566,6 @@ func TestIntegrationDeleteRequiresCSRF(t *testing.T) {
 	}
 }
 
-// postForm submits a form with a valid CSRF cookie+field derived from token.
 func postForm(admin *pgdesk.Admin, path, token string, form url.Values) *httptest.ResponseRecorder {
 	form.Set("_pgdesk_csrf", token)
 	req := httptest.NewRequest("POST", path, strings.NewReader(form.Encode()))
@@ -607,8 +574,6 @@ func postForm(admin *pgdesk.Admin, path, token string, form url.Values) *httptes
 	return do(admin, req)
 }
 
-// TestIntegrationFlashAfterMutation proves the signed one-shot flash survives the
-// post-mutation redirect and renders (escaped) on the next GET, then is cleared.
 func TestIntegrationFlashAfterMutation(t *testing.T) {
 	admin, _ := setup(t)
 	token, version := editToken(t, admin, "1")
@@ -620,7 +585,7 @@ func TestIntegrationFlashAfterMutation(t *testing.T) {
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("update status = %d", rec.Code)
 	}
-	// Grab the flash cookie the redirect set.
+
 	var flash *http.Cookie
 	for _, c := range rec.Result().Cookies() {
 		if c.Name == "pgdesk_flash" {
@@ -631,14 +596,13 @@ func TestIntegrationFlashAfterMutation(t *testing.T) {
 		t.Fatal("mutation did not set a flash cookie")
 	}
 
-	// Follow to the detail page carrying the flash cookie.
 	req := httptest.NewRequest("GET", "/admin/it_users/1", nil)
 	req.AddCookie(flash)
 	got := do(admin, req)
 	if !strings.Contains(got.Body.String(), "pg-flash") || !strings.Contains(got.Body.String(), "saved") {
 		t.Fatalf("flash not rendered on next GET:\n%s", got.Body.String())
 	}
-	// The flash cookie must be cleared by the display request.
+
 	cleared := false
 	for _, c := range got.Result().Cookies() {
 		if c.Name == "pgdesk_flash" && c.MaxAge < 0 {
@@ -652,7 +616,7 @@ func TestIntegrationFlashAfterMutation(t *testing.T) {
 
 func TestIntegrationBulkAction(t *testing.T) {
 	admin, pool := setup(t)
-	// Both seeded users -> pending for alan, active for ada; activate both.
+
 	token, _ := editToken(t, admin, "1")
 
 	form := url.Values{}
@@ -689,7 +653,7 @@ func TestIntegrationBulkActionUnknown(t *testing.T) {
 	admin, _ := setup(t)
 	token, _ := editToken(t, admin, "1")
 	form := url.Values{}
-	form.Set("_action", "nuke") // not registered
+	form.Set("_action", "nuke")
 	form.Add("key", "1")
 	if rec := postForm(admin, "/admin/it_users/action", token, form); rec.Code != http.StatusBadRequest {
 		t.Fatalf("unknown action = %d, want 400", rec.Code)
@@ -709,14 +673,13 @@ func TestIntegrationExportCSV(t *testing.T) {
 	if !strings.Contains(body, "Email") || !strings.Contains(body, "ada@example.com") {
 		t.Fatalf("csv missing header or data:\n%s", body)
 	}
-	// Filters apply to the export too (D3/F7).
+
 	filtered := do(admin, httptest.NewRequest("GET", "/admin/it_users/export.csv?f_status=active", nil)).Body.String()
 	if !strings.Contains(filtered, "ada@example.com") || strings.Contains(filtered, "alan@example.com") {
 		t.Fatalf("filtered export not applied:\n%s", filtered)
 	}
 }
 
-// dbAudit is a transactional audit logger for the O4 durability test.
 type dbAudit struct{}
 
 func (dbAudit) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEvent) error {
@@ -726,8 +689,6 @@ func (dbAudit) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEvent) e
 	return err
 }
 
-// TestIntegrationTransactionalAudit proves O4: the audit row is written inside
-// the mutation's transaction, so a successful update leaves exactly one audit row.
 func TestIntegrationTransactionalAudit(t *testing.T) {
 	dsn := os.Getenv("PGDESK_TEST_DSN")
 	if dsn == "" {
@@ -778,7 +739,7 @@ func TestIntegrationTransactionalAudit(t *testing.T) {
 
 func TestIntegrationCSRFRejected(t *testing.T) {
 	admin, _ := setup(t)
-	// POST with neither cookie nor form token must be rejected (D5).
+
 	form := url.Values{}
 	form.Set("email", "x@example.com")
 	req := httptest.NewRequest("POST", "/admin/it_users/1/edit", strings.NewReader(form.Encode()))

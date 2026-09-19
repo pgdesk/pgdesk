@@ -16,8 +16,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/render"
 )
 
-// syntheticCatalog builds a small catalog covering the auto-register decision
-// cases: a keyed writable table, an excluded table, a keyless table, and a view.
 func syntheticCatalog() *introspect.Catalog {
 	idCol := &introspect.Column{Name: "id", Position: 1, DataType: "int8", Category: introspect.CatNumeric}
 	nameCol := &introspect.Column{Name: "name", Position: 2, DataType: "text", Category: introspect.CatText}
@@ -27,7 +25,7 @@ func syntheticCatalog() *introspect.Catalog {
 	audit := introspect.NewTable("public", "audit", false, true, "",
 		[]*introspect.Column{idCol}, []*introspect.Column{idCol}, nil)
 	nopk := introspect.NewTable("public", "junction", false, true, "",
-		[]*introspect.Column{nameCol}, nil, nil) // no primary key
+		[]*introspect.Column{nameCol}, nil, nil)
 	view := introspect.NewTable("public", "active_users", true, false, "",
 		[]*introspect.Column{idCol}, []*introspect.Column{idCol}, nil)
 
@@ -59,7 +57,6 @@ func testAdmin(t *testing.T, cfgFns ...func(*config)) *Admin {
 func TestDBErrorClassification(t *testing.T) {
 	a := testAdmin(t)
 
-	// A deadline (also fired by pool saturation) -> 503 with Retry-After (O2).
 	rec := httptest.NewRecorder()
 	req := httptest.NewRequest("GET", "/admin/users", nil)
 	a.dbError(rec, req, "list", context.DeadlineExceeded)
@@ -70,7 +67,6 @@ func TestDBErrorClassification(t *testing.T) {
 		t.Error("503 should set Retry-After")
 	}
 
-	// Any other DB error -> generic 500, no internal detail leaked (F5).
 	rec = httptest.NewRecorder()
 	a.dbError(rec, req, "list", errors.New("relation \"secret_table\" does not exist"))
 	if rec.Code != http.StatusInternalServerError {
@@ -140,8 +136,7 @@ func TestBuildStateExplicitWinsOverAuto(t *testing.T) {
 }
 
 func TestBuildStateUnknownColumnReturnsError(t *testing.T) {
-	// A resource referencing a column that doesn't exist is a configuration error
-	// returned by New (via buildState) -- not a panic (the WithResource contract).
+
 	a := testAdmin(t)
 	a.cfg.resources = []resourceReg{{name: "users", fn: func(r *Resource) {
 		r.ListDisplay("no_such_column")
@@ -152,7 +147,7 @@ func TestBuildStateUnknownColumnReturnsError(t *testing.T) {
 }
 
 func TestBuildStateWritableWithoutSecretFails(t *testing.T) {
-	// No signer + a writable auto-registered table -> fail closed (D5).
+
 	a := &Admin{cfg: defaultConfig()}
 	a.cfg.autoRegister = &autoRegisterConfig{excludeTables: map[string]bool{}, includeViews: map[string]bool{}}
 	if _, err := a.buildState(syntheticCatalog()); !errors.Is(err, ErrSecretRequired) {
@@ -161,7 +156,7 @@ func TestBuildStateWritableWithoutSecretFails(t *testing.T) {
 }
 
 func TestSafeRedirect(t *testing.T) {
-	a := &Admin{cfg: defaultConfig()} // basePath "/admin"
+	a := &Admin{cfg: defaultConfig()}
 	cases := map[string]string{
 		"/admin/users":        "/admin/users",
 		"/admin":              "/admin",
@@ -169,11 +164,11 @@ func TestSafeRedirect(t *testing.T) {
 		"":                    "/admin/",
 		"//evil.com":          "/admin/",
 		"https://evil.com":    "/admin/",
-		"/etc/passwd":         "/admin/", // outside base path
-		"/adminX/y":           "/admin/", // prefix trick, not under /admin/
-		"javascript:alert(1)": "/admin/", // no leading slash
-		"/admin/a\\b":         "/admin/", // backslash
-		"http://x/admin/y":    "/admin/", // absolute URL
+		"/etc/passwd":         "/admin/",
+		"/adminX/y":           "/admin/",
+		"javascript:alert(1)": "/admin/",
+		"/admin/a\\b":         "/admin/",
+		"http://x/admin/y":    "/admin/",
 	}
 	for in, want := range cases {
 		if got := a.safeRedirect(in); got != want {
@@ -185,7 +180,6 @@ func TestSafeRedirect(t *testing.T) {
 func TestMapPgError(t *testing.T) {
 	msgs := map[string]string{"chk_total_positive": "Total must be positive."}
 
-	// Unique lookup that maps a constraint name to its column (as the catalog would).
 	uniq := func(name string) ([]string, bool) {
 		if name == "users_email_key" {
 			return []string{"email"}, true
@@ -193,12 +187,11 @@ func TestMapPgError(t *testing.T) {
 		return nil, false
 	}
 
-	// 23505 with a resolvable constraint -> per-field "must be unique" (D7).
 	unique := &pgconn.PgError{Code: "23505", ConstraintName: "users_email_key"}
 	if me := mapPgError(unique, nil, uniq); me.fieldErrors["email"] != "must be unique" {
 		t.Errorf("23505 per-field mapping wrong: %+v", me)
 	}
-	// 23505 with an unknown constraint -> form-level fallback.
+
 	if me := mapPgError(&pgconn.PgError{Code: "23505", ConstraintName: "mystery"}, nil, uniq); me.formError == "" {
 		t.Errorf("23505 fallback should be a form error: %+v", me)
 	}
@@ -213,7 +206,6 @@ func TestMapPgError(t *testing.T) {
 		t.Errorf("constraint message override not applied: %+v", me)
 	}
 
-	// Non-Postgres error -> generic form error, no internal detail leaked.
 	if me := mapPgError(errors.New("boom: schema secret"), nil, nil); me.formError == "" || strings.Contains(me.formError, "secret") {
 		t.Errorf("non-pg error should be generic: %+v", me)
 	}
@@ -223,7 +215,7 @@ func TestSanitizeRequestID(t *testing.T) {
 	if got := sanitizeRequestID("abc-123_XYZ.9"); got != "abc-123_XYZ.9" {
 		t.Errorf("clean id rejected: %q", got)
 	}
-	// Injection-shaped inbound IDs are replaced with a generated one.
+
 	for _, bad := range []string{"", "a b", "a\nb", "a;b", strings.Repeat("x", 200)} {
 		got := sanitizeRequestID(bad)
 		if got == bad {
@@ -250,7 +242,7 @@ func TestHumanize(t *testing.T) {
 }
 
 func TestClampPageSize(t *testing.T) {
-	a := &Admin{cfg: defaultConfig()} // default 50, max 200
+	a := &Admin{cfg: defaultConfig()}
 	if got := a.clampPageSize(0); got != 50 {
 		t.Errorf("zero -> default: got %d", got)
 	}
@@ -262,9 +254,6 @@ func TestClampPageSize(t *testing.T) {
 	}
 }
 
-// TestEmbeddedTemplatesParseAndExecute guards the shipped templates: they must
-// parse at construction (F5) and execute for each page shape with escaping
-// intact (F1). It needs no database.
 func TestEmbeddedTemplatesParseAndExecute(t *testing.T) {
 	sub, err := fs.Sub(templatesFS, "templates")
 	if err != nil {
@@ -314,7 +303,7 @@ func TestEmbeddedTemplatesParseAndExecute(t *testing.T) {
 			if strings.Contains(body, "<script>alert(1)") {
 				t.Fatalf("page %q leaked unescaped XSS payload", p.name)
 			}
-			// Every page carries the nonce'd theme-init script and toggle (F2).
+
 			if !strings.Contains(body, `nonce="n0nce"`) {
 				t.Errorf("page %q missing per-request nonce on script", p.name)
 			}

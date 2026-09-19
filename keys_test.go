@@ -33,8 +33,7 @@ func TestKeysInt64s(t *testing.T) {
 	if len(ids) != 3 || ids[0] != 1 || ids[2] != 3 {
 		t.Errorf("Int64s = %v", ids)
 	}
-	// The result is a concrete []int64 -- the whole point, since a []any fails to
-	// encode under pgx's PgBouncer-compatible modes.
+
 	if _, ok := any(ids).([]int64); !ok {
 		t.Error("Int64s must return a concrete []int64")
 	}
@@ -54,7 +53,7 @@ func TestKeysStrings(t *testing.T) {
 }
 
 func TestKeysWrongAccessorErrors(t *testing.T) {
-	// Asking for Int64s on a text key names the actual column type.
+
 	k := Keys{cols: []*introspect.Column{textCol("slug")}, vals: [][]any{{"a"}}}
 	_, err := k.Int64s()
 	if err == nil || !strings.Contains(err.Error(), "slug") || !strings.Contains(err.Error(), "text") {
@@ -64,7 +63,6 @@ func TestKeysWrongAccessorErrors(t *testing.T) {
 		t.Errorf("Int64s on text key: err = %v, want errors.Is ErrKeyTypeMismatch", err)
 	}
 
-	// Strings on an integer key likewise.
 	k = Keys{cols: []*introspect.Column{numCol("id")}, vals: [][]any{{int64(1)}}}
 	if _, err := k.Strings(); err == nil {
 		t.Error("Strings on integer key should error")
@@ -78,7 +76,7 @@ func TestKeysCompositeUsesRaw(t *testing.T) {
 		cols: []*introspect.Column{numCol("org_id"), textCol("slug")},
 		vals: [][]any{{int64(1), "a"}, {int64(2), "b"}},
 	}
-	// A typed accessor refuses a composite key and says to use Raw.
+
 	if _, err := k.Int64s(); err == nil || !strings.Contains(err.Error(), "Raw") {
 		t.Errorf("Int64s on composite key: %v", err)
 	}
@@ -122,14 +120,10 @@ func TestKeysAccessorErrorSentinels(t *testing.T) {
 	}
 }
 
-// errIgnoreValue discards a (value, error) accessor result down to just the
-// error, so table-driven cases can share one shape regardless of the
-// accessor's return type.
 func errIgnoreValue[T any](_ T, err error) error { return err }
 
 func TestKeysStringsWrongTypeWrapsErrKeyTypeMismatch(t *testing.T) {
-	// The column claims text, but the decoded value is not a string --
-	// e.g. a driver decode mismatch. Strings must still surface a sentinel.
+
 	k := Keys{cols: []*introspect.Column{textCol("slug")}, vals: [][]any{{42}}}
 	_, err := k.Strings()
 	if err == nil {

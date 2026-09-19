@@ -11,21 +11,13 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
-// handleAction runs a row/bulk action against the operator's selected rows,
-// transactionally and audited (O4). It inherits every backend contract: CSRF
-// (D5), central authorization (O6, CapRunAction), type-aware key decoding (D6),
-// and the bulk-selection cap (F6).
 func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok {
 		a.renderError(w, r, http.StatusNotFound, "Unknown resource.")
 		return
 	}
-	// The form must be parsed first because the action name lives in the body;
-	// only then can authorization (which is per-action) be evaluated. The check
-	// order thereafter matches every other mutating handler: authorize, then
-	// verify CSRF, then execute -- authorization is always the first gate once the
-	// operation is known, and no query runs before both checks pass.
+
 	r.Body = http.MaxBytesReader(w, r.Body, a.cfg.maxBodyBytes)
 	if err := r.ParseForm(); err != nil {
 		a.renderError(w, r, http.StatusBadRequest, "The submitted form was invalid or too large.")
@@ -51,7 +43,6 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Decode the selected keys, fail-closed, capped (F6).
 	segs := r.PostForm["key"]
 	if len(segs) == 0 {
 		a.setFlash(w, "error", "No rows were selected.")
@@ -91,9 +82,6 @@ func (a *Admin) handleAction(w http.ResponseWriter, r *http.Request) {
 	http.Redirect(w, r, a.safeRedirect(a.cfg.basePath+"/"+res.name), http.StatusSeeOther)
 }
 
-// vetActionKeys refuses the action unless every selected key names exactly one
-// row the principal may reach. Counting inside the action's transaction keeps the
-// check and the action consistent.
 func (a *Admin) vetActionKeys(ctx context.Context, tx pgx.Tx, res *Resource, keys [][]any, scope []query.Filter) error {
 	sql, args, err := query.CountRowsInScope(res.table, res.keyCols, keys, scope)
 	if err != nil {
@@ -109,13 +97,6 @@ func (a *Admin) vetActionKeys(ctx context.Context, tx pgx.Tx, res *Resource, key
 	return nil
 }
 
-// execActionTx runs the action and its audit record in one transaction (O4).
-//
-// An action runs host-authored SQL that pgdesk cannot rewrite, so the selected
-// keys are vetted first, inside the same transaction: every key must name a row
-// that exists and lies within the principal's scope (O6). A key that is out of
-// scope, absent, or duplicated refuses the whole action rather than silently
-// operating on a subset.
 func (a *Admin) execActionTx(ctx context.Context, r *http.Request, res *Resource, act *action, keys [][]any, scope []query.Filter) (string, error) {
 	var msg string
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
@@ -141,8 +122,6 @@ func (a *Admin) execActionTx(ctx context.Context, r *http.Request, res *Resource
 	return msg, nil
 }
 
-// buildActionAuditEvent records a bulk-action audit event (O4): actor, action,
-// resource, and the count/keys affected.
 func (a *Admin) buildActionAuditEvent(r *http.Request, res *Resource, act *action, keys [][]any) AuditEvent {
 	actorID, actorName := "", ""
 	if p := PrincipalFromContext(r.Context()); p != nil {

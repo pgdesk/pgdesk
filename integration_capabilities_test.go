@@ -1,9 +1,5 @@
 //go:build integration
 
-// Regression tests for the schema-capability fixes: identity-always PK editing
-// (issue #1), per-operation view updatability (issue #7), and the xmin-on-views
-// version fallback (issue #5). Each spins up its own small schema so it is
-// independent of the shared it_* fixtures.
 package pgdesk_test
 
 import (
@@ -50,10 +46,6 @@ var (
 	reCapCookie  = regexp.MustCompile(`__Host-pgdesk_csrf=([^;]+)`)
 )
 
-// TestIntegrationIdentityAlwaysEditableByDefault is the regression for issue #1:
-// a GENERATED ALWAYS AS IDENTITY primary key must be editable WITHOUT the host
-// having to mark it Readonly. Before the fix the identity column landed in the
-// UPDATE SET list and every edit failed with SQLSTATE 428C9 (HTTP 422).
 func TestIntegrationIdentityAlwaysEditableByDefault(t *testing.T) {
 	pool := capPool(t)
 	ctx := context.Background()
@@ -71,7 +63,7 @@ func TestIntegrationIdentityAlwaysEditableByDefault(t *testing.T) {
 		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
 		pgdesk.WithAuthorizer(pgdesk.AllowAll),
 		pgdesk.WithMiddleware(withPrincipal),
-		// Deliberately NO Readonly("id") -- the whole point of the fix.
+
 		pgdesk.WithResource("cap_ident", func(r *pgdesk.Resource) {
 			r.ListDisplay("id", "email", "active")
 		}),
@@ -101,9 +93,6 @@ func TestIntegrationIdentityAlwaysEditableByDefault(t *testing.T) {
 	}
 }
 
-// TestIntegrationUpdatableViewWithKey is the regression for issues #5 and #7: a
-// keyed, auto-updatable view must support detail + edit without a 500. Before the
-// fix the detail/edit SELECT emitted xmin::text, which does not exist on a view.
 func TestIntegrationUpdatableViewWithKey(t *testing.T) {
 	pool := capPool(t)
 	ctx := context.Background()
@@ -123,7 +112,7 @@ func TestIntegrationUpdatableViewWithKey(t *testing.T) {
 		pgdesk.WithAuthorizer(pgdesk.AllowAll),
 		pgdesk.WithMiddleware(withPrincipal),
 		pgdesk.WithResource("cap_uview", func(r *pgdesk.Resource) {
-			r.Key("id") // declare a key on the view to unlock detail/edit (D6)
+			r.Key("id")
 			r.ListDisplay("id", "label")
 		}),
 	)
@@ -131,13 +120,10 @@ func TestIntegrationUpdatableViewWithKey(t *testing.T) {
 		t.Fatalf("New: %v", err)
 	}
 
-	// Detail must not 500 (previously: xmin does not exist on a view).
 	if rec := do(admin, httptest.NewRequest("GET", "/admin/cap_uview/1", nil)); rec.Code != 200 {
 		t.Fatalf("view detail status = %d, want 200\n%s", rec.Code, rec.Body.String())
 	}
 
-	// The edit form's version field must be empty for a NoVersion resource, never
-	// the "<nil>" that a naive fmt.Sprint of a SQL NULL would produce.
 	editForm := do(admin, httptest.NewRequest("GET", "/admin/cap_uview/1/edit", nil))
 	if strings.Contains(editForm.Body.String(), `name="_version" value="<nil>"`) ||
 		strings.Contains(editForm.Body.String(), "&lt;nil&gt;") {
@@ -164,7 +150,6 @@ func TestIntegrationUpdatableViewWithKey(t *testing.T) {
 	}
 }
 
-// capEditForm GETs an edit form and returns (formToken, cookieToken, version).
 func capEditForm(t *testing.T, admin *pgdesk.Admin, resource, id string) (string, string, string) {
 	t.Helper()
 	rec := do(admin, httptest.NewRequest("GET", "/admin/"+resource+"/"+id+"/edit", nil))

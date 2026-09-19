@@ -5,10 +5,6 @@ import (
 	"testing"
 )
 
-// FuzzResolveColumn is the D3/O7 fuzz gate. For arbitrary request input, the
-// resolver must either return a real catalog column (whose Name equals the input
-// and is one of the table's columns) or reject it. It must never invent an
-// identifier or panic. CI runs this target as a smoke check.
 func FuzzResolveColumn(f *testing.F) {
 	tbl := testTable()
 	valid := map[string]bool{}
@@ -17,9 +13,9 @@ func FuzzResolveColumn(f *testing.F) {
 	}
 
 	seeds := []string{
-		// Real columns (must resolve).
+
 		"id", "email", "status", "prefs", "created_at", "external_id",
-		// Injection / evasion payloads (must all be rejected, never emitted).
+
 		"id; drop table users", `"; drop`, "email OR 1=1", "prefs->>'x'",
 		"", "*", "count(*)", "EMAIL", " email", "email ", "\u0442\u0435\u0441\u0442", "e\u2019", "id::text",
 		`email"`, `email";`, "email--", "email/*c*/", "email\x00", "email\n",
@@ -38,15 +34,14 @@ func FuzzResolveColumn(f *testing.F) {
 			}
 			return
 		}
-		// Accepted: it MUST be a genuine catalog column matching the input.
+
 		if !valid[c.Name] {
 			t.Fatalf("resolver invented column %q from input %q", c.Name, name)
 		}
 		if c.Name != name {
 			t.Fatalf("resolver accepted %q but returned column %q", name, c.Name)
 		}
-		// And it must never carry SQL metacharacters that could have slipped
-		// through, since it came from the catalog.
+
 		if strings.ContainsAny(c.Name, `";`) {
 			t.Fatalf("catalog column name contains SQL metacharacters: %q", c.Name)
 		}

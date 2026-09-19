@@ -8,8 +8,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
-// ScopeOnly turns a bare scope function into an Authorizer that abstains and
-// scopes. It must accept a method value too.
 func TestScopeOnly(t *testing.T) {
 	fn := func(_ context.Context, a Attributes) ([]Constraint, error) {
 		return []Constraint{Eq("org_id", a.Principal.SubjectID())}, nil
@@ -33,7 +31,6 @@ func TestScopeOnly(t *testing.T) {
 		t.Fatalf("scope = %+v", cs)
 	}
 
-	// A method value satisfies the same signature.
 	var s stateful
 	if _, ok := ScopeOnly(s.Scope).(Scoper); !ok {
 		t.Error("ScopeOnly must accept a method value")
@@ -56,14 +53,11 @@ func f(col *introspect.Column, op query.Operator, v any) query.Filter {
 	return query.Filter{Col: col, Op: op, Values: []any{v}}
 }
 
-// enforceScope pins an equality-scoped column that the operator submitted, so a
-// scoped write cannot land outside the scope.
 func TestEnforceScopeOverwritesSubmitted(t *testing.T) {
 	tbl := writeTable()
 	orgCol, _ := tbl.Column("org_id")
 	nameCol, _ := tbl.Column("name")
 
-	// Operator submitted org_id=2 and name="x"; scope pins org_id=1.
 	cols := []*introspect.Column{orgCol, nameCol}
 	vals := []any{int64(2), "x"}
 	scope := []query.Filter{f(orgCol, query.OpEq, int64(1))}
@@ -78,14 +72,12 @@ func TestEnforceScopeOverwritesSubmitted(t *testing.T) {
 	if gotVals[1] != "x" {
 		t.Errorf("unscoped name = %v, want x", gotVals[1])
 	}
-	// The caller's slices are not mutated.
+
 	if vals[0] != int64(2) {
 		t.Error("enforceScope mutated the caller's values")
 	}
 }
 
-// A scoped column the operator did NOT submit is added, so a create cannot omit
-// its way out of the scope.
 func TestEnforceScopeAddsMissing(t *testing.T) {
 	tbl := writeTable()
 	orgCol, _ := tbl.Column("org_id")
@@ -101,8 +93,6 @@ func TestEnforceScopeAddsMissing(t *testing.T) {
 	}
 }
 
-// Only equality pins a value. A Ne or In scope leaves the written columns alone
-// (the read/WHERE side and Readonly handle those).
 func TestEnforceScopeIgnoresNonEquality(t *testing.T) {
 	tbl := writeTable()
 	idCol, _ := tbl.Column("id")

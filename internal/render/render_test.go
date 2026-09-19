@@ -9,7 +9,7 @@ import (
 )
 
 func TestSafeJSONEscapesScriptBreakout(t *testing.T) {
-	// A value that tries to close the script tag and inject markup.
+
 	payload := map[string]string{"x": "</script><img src=x onerror=alert(1)>"}
 	out := string(SafeJSON(payload))
 	if strings.Contains(out, "</script>") {
@@ -39,22 +39,17 @@ func TestFormatValueNil(t *testing.T) {
 	}
 }
 
-// TestFormatValueBytes proves issue #13b is fixed: pgx delivers both bytea and
-// jsonb as []byte. Genuine binary (invalid UTF-8) is hex-encoded with a leading
-// \x (Postgres bytea convention) so it never dumps raw bytes into HTML or
-// corrupts CSV; valid-UTF-8 bytes (jsonb, text-ish blobs) render as their text
-// unchanged.
 func TestFormatValueBytes(t *testing.T) {
-	// Invalid UTF-8 -> \x hex.
+
 	if got := FormatValue([]byte{0x0a, 0x1b, 0x2c, 0xff, 0xfe}); got != `\x0a1b2cfffe` {
 		t.Errorf("invalid-UTF8 bytes = %q, want %q", got, `\x0a1b2cfffe`)
 	}
-	// Valid UTF-8 jsonb -> unchanged text.
+
 	jsonb := `{"a":1}`
 	if got := FormatValue([]byte(jsonb)); got != jsonb {
 		t.Errorf("jsonb bytes = %q, want %q unchanged", got, jsonb)
 	}
-	// Empty []byte is valid UTF-8 -> empty string, not \x.
+
 	if got := FormatValue([]byte{}); got != "" {
 		t.Errorf("empty bytes = %q, want empty string", got)
 	}
@@ -67,7 +62,7 @@ func TestCellValue(t *testing.T) {
 	if got := string(CellValue(false)); !strings.Contains(got, "pg-badge-off") {
 		t.Errorf("false -> %q, want an off badge", got)
 	}
-	// Non-bool values are HTML-escaped (F1): DB/request content is never raw markup.
+
 	if got := string(CellValue(`<script>alert(1)</script>`)); strings.Contains(got, "<script>") {
 		t.Fatalf("CellValue leaked unescaped markup: %s", got)
 	}
@@ -76,9 +71,6 @@ func TestCellValue(t *testing.T) {
 	}
 }
 
-// TestRenderEscapesDynamicContent proves html/template auto-escaping is intact
-// for DB/request-derived values (F1): an XSS payload placed in a cell renders as
-// text, not markup.
 func TestRenderEscapesDynamicContent(t *testing.T) {
 	fsys := fstest.MapFS{
 		"page.html": &fstest.MapFile{Data: []byte(
@@ -120,7 +112,7 @@ func TestRenderEscapesDynamicContent(t *testing.T) {
 
 func TestRenderPageBuffersOnError(t *testing.T) {
 	fsys := fstest.MapFS{
-		// References a nonexistent nested template -> execution error.
+
 		"bad.html": &fstest.MapFile{Data: []byte(`{{ define "bad" }}{{ template "missing" . }}{{ end }}`)},
 	}
 	r, err := New(fsys, StaticFuncs())

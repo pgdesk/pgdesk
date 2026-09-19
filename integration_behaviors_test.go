@@ -1,8 +1,5 @@
 //go:build integration
 
-// Regression tests for the handler/resource behavior fixes: per-resource
-// middleware (issue #2), CSV formula-injection neutralization (#3), the revived
-// Widget/FieldLabel setters (#4), and the flash cookie Secure flag (#12).
 package pgdesk_test
 
 import (
@@ -17,9 +14,6 @@ import (
 	"github.com/pgdesk/pgdesk"
 )
 
-// TestIntegrationResourceUseMiddlewareRuns is the regression for issue #2: a
-// middleware registered via Resource.Use must run for that resource's routes and
-// must NOT run for a different resource's routes.
 func TestIntegrationResourceUseMiddlewareRuns(t *testing.T) {
 	pool := capPool(t)
 	ctx := context.Background()
@@ -68,7 +62,6 @@ func TestIntegrationResourceUseMiddlewareRuns(t *testing.T) {
 	}
 }
 
-// TestIntegrationCSVExportNeutralizesFormula is the regression for issue #3.
 func TestIntegrationCSVExportNeutralizesFormula(t *testing.T) {
 	pool := capPool(t)
 	ctx := context.Background()
@@ -92,7 +85,7 @@ func TestIntegrationCSVExportNeutralizesFormula(t *testing.T) {
 		t.Fatalf("export = %d", rec.Code)
 	}
 	body := rec.Body.String()
-	// The dangerous cells must be prefixed with a single quote; the safe one must not.
+
 	if !strings.Contains(body, "'=cmd") || !strings.Contains(body, "'+SUM(A1)") {
 		t.Errorf("formula cells not neutralized:\n%s", body)
 	}
@@ -101,8 +94,6 @@ func TestIntegrationCSVExportNeutralizesFormula(t *testing.T) {
 	}
 }
 
-// TestIntegrationWidgetAndLabelOverride is the regression for issue #4: the
-// Widget and FieldLabel setters must actually affect the rendered form.
 func TestIntegrationWidgetAndLabelOverride(t *testing.T) {
 	pool := capPool(t)
 	ctx := context.Background()
@@ -136,8 +127,6 @@ func TestIntegrationWidgetAndLabelOverride(t *testing.T) {
 	}
 }
 
-// TestIntegrationFlashCookieSecure is the regression for issue #12: the flash
-// cookie must carry the Secure attribute.
 func TestIntegrationFlashCookieSecure(t *testing.T) {
 	pool := capPool(t)
 	ctx := context.Background()
@@ -155,7 +144,7 @@ func TestIntegrationFlashCookieSecure(t *testing.T) {
 	if err != nil {
 		t.Fatalf("New: %v", err)
 	}
-	// Get a create form for a CSRF token+cookie, then submit to trigger a flash.
+
 	token, cookie, _ := capEditFormNew(t, admin, "beh_flash")
 	form := url.Values{"name": {"x"}}
 	form.Set("_pgdesk_csrf", token)
@@ -180,7 +169,6 @@ func TestIntegrationFlashCookieSecure(t *testing.T) {
 	}
 }
 
-// capEditFormNew GETs a create form and returns (formToken, cookieToken, "").
 func capEditFormNew(t *testing.T, admin *pgdesk.Admin, resource string) (string, string, string) {
 	t.Helper()
 	rec := do(admin, httptest.NewRequest("GET", "/admin/"+resource+"/new", nil))

@@ -7,8 +7,6 @@ import (
 	"time"
 )
 
-// withFrozenTime overrides the package clock for the duration of the test and
-// restores it afterwards. It returns a setter so a test can advance time.
 func withFrozenTime(t *testing.T, at time.Time) func(time.Time) {
 	t.Helper()
 	prev := timeNow
@@ -94,19 +92,16 @@ func TestKeyRotationVerifiesRetiredTokens(t *testing.T) {
 	old := mustSigner(t, []byte("old-primary"))
 	oldTok, _ := old.Issue()
 
-	// New signer rotates in a fresh primary but keeps the old key for verify.
 	rotated := mustSigner(t, []byte("new-primary"), []byte("old-primary"))
 	if err := rotated.Verify(oldTok); err != nil {
 		t.Fatalf("rotated signer should still verify old token: %v", err)
 	}
 
-	// A signer without the old key must reject it.
 	fresh := mustSigner(t, []byte("new-primary"))
 	if err := fresh.Verify(oldTok); err == nil {
 		t.Fatal("signer without retired key must reject old token")
 	}
 
-	// New tokens are signed with the new primary.
 	newTok, _ := rotated.Issue()
 	if err := fresh.Verify(newTok); err != nil {
 		t.Fatalf("fresh signer should verify new-primary token: %v", err)
@@ -120,7 +115,7 @@ func TestVerifyEnforcesTTL(t *testing.T) {
 		name    string
 		issueAt time.Time
 		checkAt time.Time
-		want    error // nil means Verify should succeed
+		want    error
 	}{
 		{
 			name:    "fresh token verifies",
@@ -189,13 +184,11 @@ func TestVerifyEnforcesTTL(t *testing.T) {
 	}
 }
 
-// TestVerifyRejectsPreTTLFormat guards against panics on tokens minted in the
-// old format (a bare 32-byte nonce payload with no timestamp prefix).
 func TestVerifyRejectsPreTTLFormat(t *testing.T) {
 	key := []byte("legacy-key")
 	s := mustSigner(t, key)
 
-	nonce := make([]byte, nonceLen) // all-zero nonce is fine for the shape test
+	nonce := make([]byte, nonceLen)
 	oldTok := enc.EncodeToString(nonce) + "." + enc.EncodeToString(sign(key, nonce))
 
 	if err := s.Verify(oldTok); !errors.Is(err, ErrMalformed) {
@@ -206,7 +199,7 @@ func TestVerifyRejectsPreTTLFormat(t *testing.T) {
 func TestVerifyDoubleSubmit(t *testing.T) {
 	s := mustSigner(t, []byte("dsk"))
 	a, _ := s.Issue()
-	b, _ := s.Issue() // valid but different token
+	b, _ := s.Issue()
 
 	if err := s.VerifyDoubleSubmit(a, a); err != nil {
 		t.Fatalf("matching valid tokens: %v", err)
@@ -259,9 +252,6 @@ func mintSealWith(t *testing.T, key []byte) string {
 	return mustSigner(t, key).Seal([]byte("hello"))
 }
 
-// flipLastChar corrupts the FIRST base64 character of the token. (The last
-// character can encode only ignored trailing bits, so flipping it may decode to
-// the same bytes; the first character is always meaningful.)
 func flipLastChar(tok string) string {
 	if tok == "" {
 		return "x"

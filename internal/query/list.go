@@ -6,24 +6,17 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
-// Filter is a resolved, validated filter predicate. Col came from the catalog
-// (D3), Op passed the type-category whitelist, and Values are typed via
-// ParseScalar. Nothing here is request-string-interpolated: columns are quoted
-// catalog identifiers and values become $N.
 type Filter struct {
 	Col    *introspect.Column
 	Op     Operator
-	Values []any // 1 for eq/lt/gt/ilike/isnull, 2 for between, N for in
+	Values []any
 }
 
-// SearchSpec is a resolved free-text search across text columns.
 type SearchSpec struct {
-	Cols []*introspect.Column // text columns to match
-	Term string               // already wrapped for ILIKE by the caller
+	Cols []*introspect.Column
+	Term string
 }
 
-// ListParams fully describes a list query. Every identifier is a resolved
-// catalog column; every value flows through Args.
 type ListParams struct {
 	Columns  []*introspect.Column
 	Filters  []Filter
@@ -34,7 +27,6 @@ type ListParams struct {
 	Offset   int
 }
 
-// BuildList assembles a parameterized list query from resolved params (D3).
 func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 	if len(p.Columns) == 0 {
 		return "", nil, ErrNoColumns
@@ -58,11 +50,6 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 		b.WriteString(strings.Join(conds, " AND "))
 	}
 
-	// ORDER BY carries a deterministic primary-key tiebreaker after the chosen
-	// sort column. Without it, sorting by a non-unique or nullable column leaves
-	// rows with equal sort keys in an arbitrary order that can differ between page
-	// fetches, so a row may appear on two pages or be skipped. Appending the PK (in
-	// a stable ASC order) makes the total order total, and thus pagination stable.
 	order := make([]string, 0, 1+len(t.PrimaryKey))
 	if p.Sort != nil {
 		dir := " ASC"
@@ -73,7 +60,7 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 	}
 	for _, pk := range t.PrimaryKey {
 		if p.Sort != nil && pk.Name == p.Sort.Name {
-			continue // already the primary sort key
+			continue
 		}
 		order = append(order, Ident(pk.Name)+" ASC")
 	}
@@ -88,8 +75,6 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 	return b.String(), args.Values(), nil
 }
 
-// emitFilter renders one predicate, binding values as $N. The column identifier
-// is a quoted catalog name; the operator was whitelisted for its type category.
 func emitFilter(args *Args, f Filter) string {
 	col := Ident(f.Col.Name)
 	switch f.Op {
@@ -117,13 +102,11 @@ func emitFilter(args *Args, f Filter) string {
 		}
 		return col + " IS NOT NULL"
 	default:
-		// Unreachable: operators are validated before a Filter is constructed.
-		// Emit a predicate that is always false rather than risk a bad clause.
+
 		return "false"
 	}
 }
 
-// emitSearch renders "(c1 ILIKE $x OR c2 ILIKE $x ...)" sharing one placeholder.
 func emitSearch(args *Args, s *SearchSpec) string {
 	ph := args.Add(s.Term)
 	parts := make([]string, len(s.Cols))
@@ -133,20 +116,6 @@ func emitSearch(args *Args, s *SearchSpec) string {
 	return "(" + strings.Join(parts, " OR ") + ")"
 }
 
-// BuildFKLabels builds the batched foreign-key label lookup (D4): one
-// "SELECT pk, label FROM ref WHERE pk IN ($1, $2, ...)" for a whole page of FK
-// values, instead of a generated JOIN or N+1 queries. pkVals are the distinct
-// referenced key values collected across the page.
-//
-// The keys are bound as individual $N placeholders rather than a single array
-// parameter. A []any array argument cannot be encoded when pgx runs without a
-// prepared-statement describe step (QueryExecModeExec / SimpleProtocol, the modes
-// used behind a transaction-pooling PgBouncer), so an array bind would silently
-// break FK labels on that common topology. Individual placeholders encode in
-// every mode. This mirrors emitFilter's handling of OpIn.
-//
-// scope holds the principal's row constraints on the REFERENCED resource (O6): a
-// label is a read of another table, so it must obey that table's own scope.
 func BuildFKLabels(ref *introspect.Table, pkCol, labelCol *introspect.Column, pkVals []any, scope []Filter) (string, []any) {
 	var b strings.Builder
 	args := &Args{}

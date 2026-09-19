@@ -8,8 +8,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
-// peopleTable is a keyed table with a numeric id and two text columns, used to
-// exercise the LabelColumn override and the first-text-column heuristic.
 func peopleTable() *introspect.Table {
 	id := col("id")
 	fullName := textCol("full_name")
@@ -22,9 +20,6 @@ func peopleResource() *Resource {
 	return newResource("people", peopleTable(), 50)
 }
 
-// LabelColumn sets labelCol to the resolved column on success, and records an
-// ErrUnknownColumn configuration error for an unknown column without touching
-// labelCol.
 func TestLabelColumnSetsOrErrors(t *testing.T) {
 	r := peopleResource()
 	r.LabelColumn("full_name")
@@ -45,19 +40,14 @@ func TestLabelColumnSetsOrErrors(t *testing.T) {
 	}
 }
 
-// labelColumn prefers a resource's explicit LabelColumn over the first-text-column
-// heuristic, and falls back to the heuristic when none is set.
 func TestLabelColumnFunctionPrefersExplicitOverride(t *testing.T) {
 	r := peopleResource()
 	pk := r.table.PrimaryKey[0]
 
-	// Unset: falls back to the first non-hidden text column (full_name, ordinal
-	// before email).
 	if got := labelColumn(r, pk); got.Name != "full_name" {
 		t.Fatalf("labelColumn heuristic = %q, want full_name", got.Name)
 	}
 
-	// Explicit override wins even though it is not the first text column.
 	r.LabelColumn("email")
 	if r.err != nil {
 		t.Fatalf("LabelColumn(email): unexpected error %v", r.err)
@@ -67,9 +57,6 @@ func TestLabelColumnFunctionPrefersExplicitOverride(t *testing.T) {
 	}
 }
 
-// A resolve failure names the setter that referenced the bad column, so a
-// misconfiguration is traceable back to its call site, while still satisfying
-// errors.Is(err, ErrUnknownColumn) for existing callers.
 func TestResolveErrorNamesCallingSetter(t *testing.T) {
 	r := peopleResource()
 	r.ListDisplay("bad_column")

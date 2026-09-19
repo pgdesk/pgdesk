@@ -10,10 +10,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/render"
 )
 
-// handleExport streams the current (filtered/sorted) list as CSV (F7). It runs
-// through the same authorizer (CapList), catalog identifier resolution (D3), and
-// bounded query as the HTML list -- only the presentation differs. Row count is
-// capped so an export can't force an unbounded scan (F6).
 func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	res, ok := a.liveResource(r, r.PathValue("resource"))
 	if !ok {
@@ -35,9 +31,7 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	display := visibleColumns(res.listDisplay, res)
-	// Fetch one more than the cap so a full result set is distinguishable from an
-	// exact-fit one: if the extra row materializes, the export was truncated at
-	// maxExportRows and we log it rather than silently returning a short file.
+
 	sql, args, err := query.BuildList(res.table, query.ListParams{
 		Columns:  display,
 		Filters:  withScope(lr.filters, scope),
@@ -61,8 +55,6 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	defer rows.Close()
 
-	// Headers are set before the first write; a mid-stream DB error can no longer
-	// change the status, so such errors are logged and the stream simply ends.
 	w.Header().Set("Content-Type", "text/csv; charset=utf-8")
 	w.Header().Set("Content-Disposition", "attachment; filename="+strconv.Quote(res.name+".csv"))
 	cw := csv.NewWriter(w)
@@ -76,7 +68,7 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	}
 	written := 0
 	for rows.Next() {
-		// Stop at the cap; the (cap+1)th row only exists to detect truncation.
+
 		if written >= a.cfg.maxExportRows {
 			LoggerFromContext(r.Context()).Warn("pgdesk: export truncated at row cap",
 				"resource", res.name, "max_export_rows", a.cfg.maxExportRows)
@@ -104,11 +96,6 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 	cw.Flush()
 }
 
-// exportContext derives a bounded context for a streaming CSV export. An export
-// is a different workload from an interactive query, so it uses the longer
-// exportTimeout (never shorter than the interactive queryTimeout) rather than the
-// per-query deadline, so a legitimate large export is not aborted mid-stream and
-// silently truncated (F6/F7).
 func (a *Admin) exportContext(r *http.Request) (context.Context, context.CancelFunc) {
 	d := a.cfg.exportTimeout
 	if d < a.cfg.queryTimeout {
@@ -117,11 +104,6 @@ func (a *Admin) exportContext(r *http.Request) (context.Context, context.CancelF
 	return context.WithTimeout(r.Context(), d)
 }
 
-// csvSafeCell neutralizes spreadsheet formula injection. A cell whose first
-// character is one a spreadsheet treats as a formula (=, +, -, @) or a control
-// character (tab, CR) is prefixed with a single quote so Excel/Sheets/LibreOffice
-// render it as literal text instead of evaluating it. DB content is never trusted
-// to be inert just because it reached the export through the query builder.
 func csvSafeCell(s string) string {
 	if s == "" {
 		return s
