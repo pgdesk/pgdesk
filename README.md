@@ -97,8 +97,9 @@ deploy it raw to the public internet expecting more than it claims.
 - Go 1.25+ (floor set by pgx v5.10)
 - PostgreSQL 12+
 
-pgdesk follows [SemVer](https://semver.org/); pre-1.0, breaking changes are called
-out in [CHANGELOG.md](CHANGELOG.md). **v1 feature-complete**, pre-1.0 API polish ongoing.
+pgdesk follows [SemVer](https://semver.org/). **There is no tagged release yet**:
+the v1 feature set is complete and proven against real PostgreSQL, but the API is
+still pre-1.0 and breaking changes are called out in [CHANGELOG.md](CHANGELOG.md).
 
 ## License
 

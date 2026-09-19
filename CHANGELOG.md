@@ -5,6 +5,9 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+**Nothing has been released yet.** There are no tags, so every entry below is
+unreleased and the API may still change. Breaking changes are called out as such.
+
 ## [Unreleased]
 
 ### Security
@@ -65,9 +68,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Documentation: Production checklist covering readiness probes, catalog reloads, metrics, timeouts, and audit
 - New example: `examples/session-auth/` demonstrating Principal attachment via signed cookie middleware
 
-## [1.0.0] - 2025-07
+### Initial feature set (2025-07)
 
-First stable release. Features:
+When the v1 surface came together. Never tagged or published -- breaking changes
+landed afterwards (`WithVersionColumn` -> `VersionColumn`, `WithConstraintMessage`
+-> `ConstraintMessage`, `Resource.Authorize` and `WithActionAllowed` removed,
+`admin.Resource` -> `WithResource`), which is why this is not a release heading.
 
 - Schema introspection with live catalog snapshots
 - Declarative resource configuration
