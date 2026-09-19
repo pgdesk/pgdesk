@@ -20,7 +20,11 @@
   {{- range .Fields }}
   <div class="pg-field-row">
     <dt>{{ .Label }}</dt>
-    <dd>{{ cellValue .Value }}</dd>
+    <dd>
+      {{- if .FKLink }}<a href="{{ .FKLink }}">{{ .FKLabel }}</a>
+      {{- else if .FKLabel }}{{ .FKLabel }}
+      {{- else }}{{ cellValue .Value }}{{ end }}
+    </dd>
   </div>
   {{- end }}
 </dl>

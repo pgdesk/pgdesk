@@ -1,6 +1,7 @@
 package pgdesk
 
 import (
+	"net/http/httptest"
 	"testing"
 
 	"github.com/pgdesk/pgdesk/internal/introspect"
@@ -11,8 +12,9 @@ func formFieldsFor(t *testing.T, cols []*introspect.Column, row map[string]any) 
 	t.Helper()
 	a := testAdmin(t)
 	res := &Resource{name: "orders", fields: map[string]*fieldConfig{}}
+	req := httptest.NewRequest("GET", "/admin/orders/1/edit", nil)
 	out := map[string]formField{}
-	for _, f := range a.buildFormFields(res, cols, row, nil) {
+	for _, f := range a.buildFormFields(req, res, cols, row, nil) {
 		out[f.Name] = f
 	}
 	return out

@@ -26,6 +26,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- Foreign-key pickers. A single-column foreign key whose referenced table is a
+  registered resource now renders as a bounded search combobox on create/edit
+  forms, and resolves to a linked label on the detail page (previously only the
+  list page did this; forms and detail showed the raw key).
+  - New endpoint `GET {basePath}/{resource}/options.json?q=` returns at most
+    `WithMaxOptions(n)` (default 20) `{value,label}` pairs, and reports
+    `truncated`. It requires `CapList` on the referenced resource and applies
+    that resource's row scope, so a picker cannot reveal a row the operator
+    could not have listed. It answers in JSON on every path, including refusals.
+  - New option `WithMaxOptions(n)`; new `Widget` constant `WidgetFK`. An explicit
+    `Resource.Widget` still wins over the foreign-key default.
+  - The response also reports `searchable`, so a resource with no text column to
+    match says the term was not applied instead of returning the unfiltered first
+    page as if it were a set of matches.
+  - A readonly foreign key (generated, identity, or `Resource.Readonly`) shows its
+    label too, matching the detail page.
+  - The field stays a real `<input>` carrying the key, so forms keep working with
+    JavaScript disabled; `pgdesk.js` upgrades it in place to a WAI-ARIA combobox.
 - Documentation: Authorization & row scoping section with concrete tenant-scoping example
 - Documentation: Production checklist covering readiness probes, catalog reloads, metrics, timeouts, and audit
 - New example: `examples/session-auth/` demonstrating Principal attachment via signed cookie middleware

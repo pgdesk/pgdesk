@@ -208,9 +208,13 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	fkLabels := a.resolveRowFKLabels(r, res, display, row)
 	fields := make([]detailField, len(display))
 	for i, c := range display {
 		fields[i] = detailField{Label: a.fieldLabel(res, c), Value: row[c.Name]}
+		if fl, ok := fkLabels[c.Name]; ok {
+			fields[i].FKLabel, fields[i].FKLink = fl.label, fl.link
+		}
 	}
 	data := detailView{
 		Base:      a.baseView(r, res.Label),
@@ -257,7 +261,7 @@ func (a *Admin) handleEditForm(w http.ResponseWriter, r *http.Request) {
 		Action:   a.editAction(res, key),
 		Key:      key,
 		Version:  version,
-		Fields:   a.buildFormFields(res, display, row, nil),
+		Fields:   a.buildFormFields(r, res, display, row, nil),
 	}
 	a.renderPage(w, r, http.StatusOK, "form", data)
 }

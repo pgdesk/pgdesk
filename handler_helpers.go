@@ -61,7 +61,10 @@ func (a *Admin) fieldLabel(res *Resource, c *introspect.Column) string {
 // from type and applying readonly/required/error state. attemptedValues, when
 // non-nil, overrides row values (used when re-rendering after a validation error
 // so the operator keeps their input). fieldErrs maps column -> inline error.
-func (a *Admin) buildFormFields(res *Resource, cols []*introspect.Column, row map[string]any, fieldErrs map[string]string) []formField {
+func (a *Admin) buildFormFields(r *http.Request, res *Resource, cols []*introspect.Column, row map[string]any, fieldErrs map[string]string) []formField {
+	// One batched lookup for the whole form, so showing "who is row 7?" next to
+	// every foreign key costs one query per FK column, not one per field.
+	fkLabels := a.resolveRowFKLabels(r, res, cols, row)
 	fields := make([]formField, 0, len(cols))
 	for _, c := range cols {
 		fc := res.fields[c.Name]
@@ -86,6 +89,17 @@ func (a *Admin) buildFormFields(res *Resource, cols []*introspect.Column, row ma
 		}
 		if c.IsEnum() {
 			ff.Options = c.EnumLabels
+		}
+		// A foreign key's label is shown whatever the widget: a readonly key is
+		// exactly the case where the operator most needs to know which row it is.
+		// Becoming a *picker* is narrower -- it needs an editable field the host
+		// has not claimed with an explicit widget.
+		if ref, ok := a.resolveFKRef(r, res, c.Name); ok {
+			ff.ValueLabel = fkLabels[c.Name].label
+			if !readonly && (fc == nil || fc.widget == WidgetAuto) {
+				ff.Widget = string(WidgetFK)
+				ff.Ref = ref.resource.name
+			}
 		}
 		if fieldErrs != nil {
 			ff.Error = fieldErrs[c.Name]

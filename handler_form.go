@@ -16,7 +16,7 @@ func (a *Admin) renderFormWithErrors(w http.ResponseWriter, r *http.Request, res
 	if err != nil {
 		current = map[string]any{} // row may be gone; still show the form
 	}
-	fields := a.buildFormFields(res, display, current, me.fieldErrors)
+	fields := a.buildFormFields(r, res, display, current, me.fieldErrors)
 	overlaySubmitted(r, res, fields)
 
 	key := r.PathValue("key")
@@ -43,7 +43,7 @@ func (a *Admin) renderConflict(w http.ResponseWriter, r *http.Request, res *Reso
 		a.handleFetchError(w, r, err)
 		return
 	}
-	fields := a.buildFormFields(res, display, current, nil)
+	fields := a.buildFormFields(r, res, display, current, nil)
 	// Show current DB value alongside, then overlay the operator's attempt as the
 	// editable value so they can review and resubmit.
 	for i := range fields {

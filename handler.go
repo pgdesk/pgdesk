@@ -37,6 +37,7 @@ func (a *Admin) buildHandler() http.Handler {
 		mux.HandleFunc("GET /{resource}/new", a.resourceScoped(a.handleCreateForm))
 		mux.HandleFunc("POST /{resource}/new", a.resourceScoped(a.handleCreate))
 		mux.HandleFunc("GET /{resource}/export.csv", a.resourceScoped(a.handleExport))
+		mux.HandleFunc("GET /{resource}/options.json", a.resourceScoped(a.handleOptions))
 		mux.HandleFunc("POST /{resource}/action", a.resourceScoped(a.handleAction))
 		mux.HandleFunc("GET /{resource}/{key}", a.resourceScoped(a.handleDetail))
 		mux.HandleFunc("GET /{resource}/{key}/edit", a.resourceScoped(a.handleEditForm))

@@ -39,6 +39,7 @@ type config struct {
 	maxBodyBytes    int64
 	maxBulk         int
 	maxExportRows   int
+	maxOptions      int
 
 	templateFS fs.FS // nil unless WithTemplateFS is used; overlays the embedded templates
 
@@ -74,6 +75,7 @@ func defaultConfig() *config {
 		maxBodyBytes:    1 << 20, // 1 MiB
 		maxBulk:         500,
 		maxExportRows:   50000,
+		maxOptions:      20,
 	}
 }
 
@@ -291,6 +293,21 @@ func WithMaxExportRows(n int) Option {
 			return
 		}
 		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxExportRows(%d) ignored: value must be > 0, keeping %d", n, c.maxExportRows))
+	}
+}
+
+// WithMaxOptions caps how many options a foreign-key picker offers per search
+// (default 20). It is what keeps the picker usable against a large referenced
+// table: the endpoint never returns more than this, and reports that the result
+// was truncated so the operator knows to narrow their search. A value <= 0 is
+// ignored (a WARN is logged at construction) and the current limit is kept.
+func WithMaxOptions(n int) Option {
+	return func(c *config) {
+		if n > 0 {
+			c.maxOptions = n
+			return
+		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxOptions(%d) ignored: value must be > 0, keeping %d", n, c.maxOptions))
 	}
 }
 
