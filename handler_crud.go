@@ -323,8 +323,12 @@ func (a *Admin) handleUpdate(w http.ResponseWriter, r *http.Request) {
 	ctx, cancel := a.queryContext(r)
 	defer cancel()
 
-	_, updErr := a.execUpdateTx(ctx, r, res, sql, args, returning, keyVals, scope)
+	_, updErr := a.execUpdateTx(ctx, r, res, sql, args, returning, keyVals, scope, setCols, setVals)
+	var fkErr *fkScopeError
 	switch {
+	case errors.As(updErr, &fkErr):
+		a.renderFormWithErrors(w, r, res, keyVals, version, unavailableSelection(fkErr), scope)
+		return
 	case errors.Is(updErr, errNotFound):
 		a.renderError(w, r, http.StatusNotFound, "Record not found.")
 		return
@@ -396,9 +400,14 @@ func (a *Admin) bestEffortAudit(ctx context.Context, ev AuditEvent) {
 // principal's scope (O6). rowInScope tells the two apart on the failure path only,
 // inside the same transaction, so a forbidden edit reports 404 rather than telling
 // the operator to reload and retry forever.
-func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any, scope []query.Filter) (map[string]any, error) {
+func (a *Admin) execUpdateTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, keyVals []any, scope []query.Filter, setCols []*introspect.Column, setVals []any) (map[string]any, error) {
 	var after map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
+		// In the same transaction as the write, so no row can leave the
+		// principal's scope between the check and the UPDATE.
+		if err := a.checkFKScope(ctx, tx, r, res, setCols, setVals); err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, sql, args...)
 		if err != nil {
 			return err

@@ -10,6 +10,10 @@ import (
 	"github.com/pgdesk/pgdesk/internal/render"
 )
 
+// optionsSegment is the literal last path segment of the picker's endpoint. It is
+// named so the router, the JSON-refusal check, and the template all agree.
+const optionsSegment = "options.json"
+
 // fkOption is one selectable row in a foreign-key picker: Value is the key the
 // form submits, Label is what the operator reads.
 type fkOption struct {

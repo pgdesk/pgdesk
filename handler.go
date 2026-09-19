@@ -37,7 +37,7 @@ func (a *Admin) buildHandler() http.Handler {
 		mux.HandleFunc("GET /{resource}/new", a.resourceScoped(a.handleCreateForm))
 		mux.HandleFunc("POST /{resource}/new", a.resourceScoped(a.handleCreate))
 		mux.HandleFunc("GET /{resource}/export.csv", a.resourceScoped(a.handleExport))
-		mux.HandleFunc("GET /{resource}/options.json", a.resourceScoped(a.handleOptions))
+		mux.HandleFunc("GET /{resource}/"+optionsSegment, a.resourceScoped(a.handleOptions))
 		mux.HandleFunc("POST /{resource}/action", a.resourceScoped(a.handleAction))
 		mux.HandleFunc("GET /{resource}/{key}", a.resourceScoped(a.handleDetail))
 		mux.HandleFunc("GET /{resource}/{key}/edit", a.resourceScoped(a.handleEditForm))
@@ -49,7 +49,17 @@ func (a *Admin) buildHandler() http.Handler {
 		// route would, in Go's ServeMux conflict detection).
 		routed := http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 			if r.Method == http.MethodGet && strings.HasPrefix(r.URL.Path, staticPrefix) {
+				// Assets carry no row data, and the 403 page below needs the
+				// stylesheet to render.
 				a.handleStatic(w, r)
+				return
+			}
+			// CapAccessAdmin is the front door: one gate for the whole admin,
+			// checked before routing. Enforcing it per-route instead would leave
+			// any route that forgot the check serving rows to an operator the
+			// host meant to lock out entirely -- which is exactly what happened
+			// while only the index page checked it.
+			if !a.guardAdminAccess(w, r) {
 				return
 			}
 			mux.ServeHTTP(w, r)
@@ -179,6 +189,32 @@ func (a *Admin) can(r *http.Request, capability Capability, resource, action str
 		return false
 	}
 	return ok
+}
+
+// guardAdminAccess enforces CapAccessAdmin for every admin route. It reports
+// false after writing the refusal.
+//
+// A JSON route gets a JSON refusal: its client is a fetch() that must be able to
+// tell "denied" from "no results" without parsing an HTML error page.
+func (a *Admin) guardAdminAccess(w http.ResponseWriter, r *http.Request) bool {
+	if !answersJSON(r) {
+		return a.guard(w, r, CapAccessAdmin, "", "")
+	}
+	if PrincipalFromContext(r.Context()) == nil {
+		a.jsonError(w, r, http.StatusUnauthorized, "Authentication is required.")
+		return false
+	}
+	if !a.can(r, CapAccessAdmin, "", "") {
+		a.jsonError(w, r, http.StatusForbidden, "You are not permitted to use this admin.")
+		return false
+	}
+	return true
+}
+
+// answersJSON reports whether the request's route replies in JSON rather than
+// HTML. The path is already base-path-stripped at this point.
+func answersJSON(r *http.Request) bool {
+	return strings.HasSuffix(r.URL.Path, "/"+optionsSegment)
 }
 
 // guard resolves the principal and checks a capability before any query runs. On

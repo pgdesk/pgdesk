@@ -139,8 +139,13 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 
 	ctx, cancel := a.queryContext(r)
 	defer cancel()
-	after, insErr := a.execInsertTx(ctx, r, res, sql, args, returning)
+	after, insErr := a.execInsertTx(ctx, r, res, sql, args, returning, setCols, setVals)
 	if insErr != nil {
+		var fkErr *fkScopeError
+		if errors.As(insErr, &fkErr) {
+			a.renderCreateWithErrors(w, r, res, unavailableSelection(fkErr))
+			return
+		}
 		me := mapPgError(insErr, res.constraintMsgs, res.table.UniqueColumns)
 		if me.empty() {
 			a.dbError(w, r, "create", insErr)
@@ -159,9 +164,14 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 }
 
 // execInsertTx runs the INSERT and audit in one transaction (O4).
-func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column) (map[string]any, error) {
+func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource, sql string, args []any, returning []*introspect.Column, setCols []*introspect.Column, setVals []any) (map[string]any, error) {
 	var after map[string]any
 	err := a.withTx(ctx, func(tx pgx.Tx) error {
+		// In the same transaction as the write, so no row can leave the
+		// principal's scope between the check and the INSERT.
+		if err := a.checkFKScope(ctx, tx, r, res, setCols, setVals); err != nil {
+			return err
+		}
 		rows, err := tx.Query(ctx, sql, args...)
 		if err != nil {
 			return err
@@ -184,6 +194,13 @@ func (a *Admin) execInsertTx(ctx context.Context, r *http.Request, res *Resource
 	}
 	a.bestEffortAudit(ctx, a.buildAuditEventFromRow(r, res, AuditCreate, after, nil, after))
 	return after, nil
+}
+
+// unavailableSelection turns a scope violation into the same inline field error a
+// database validation failure produces, so the operator sees one consistent
+// message and learns nothing about the row they could not reach.
+func unavailableSelection(e *fkScopeError) mappedError {
+	return mappedError{fieldErrors: map[string]string{e.column: "is not an available selection"}}
 }
 
 // renderCreateWithErrors re-renders the create form after a DB validation error

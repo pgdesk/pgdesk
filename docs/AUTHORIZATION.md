@@ -61,6 +61,8 @@ type Principal interface {
 // capability is checked per route, in the handler layer, before any query runs.
 type Capability string
 
+// CapAccessAdmin is the front door: it is checked once, before routing, for every
+// admin route. Denying it locks the entire admin, not just the index page.
 const (
 	CapAccessAdmin Capability = "access_admin"
 	CapList        Capability = "list"
