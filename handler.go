@@ -223,16 +223,27 @@ func (a *Admin) handleIndex(w http.ResponseWriter, r *http.Request) {
 	}
 	st := stateFromContext(r.Context())
 	var items []resourceNav
-	if st != nil {
-		for _, name := range st.order {
-			items = append(items, resourceNav{Name: name, LabelPlural: st.resources[name].LabelPlural})
-		}
+	for _, name := range a.listableResources(r, st) {
+		items = append(items, resourceNav{Name: name, LabelPlural: st.resources[name].LabelPlural})
 	}
 	data := indexView{
 		Base:      a.baseView(r, a.cfg.title),
 		Resources: items,
 	}
 	a.renderPage(w, r, http.StatusOK, "index", data)
+}
+
+func (a *Admin) listableResources(r *http.Request, st *adminState) []string {
+	if st == nil {
+		return nil
+	}
+	out := make([]string, 0, len(st.order))
+	for _, name := range st.order {
+		if a.can(r, CapList, name, "") {
+			out = append(out, name)
+		}
+	}
+	return out
 }
 
 func (a *Admin) baseView(r *http.Request, title string) baseView {
@@ -242,14 +253,13 @@ func (a *Admin) baseView(r *http.Request, title string) baseView {
 	}
 	current := r.PathValue("resource")
 	var nav []navItem
-	if st := stateFromContext(r.Context()); st != nil {
-		for _, name := range st.order {
-			nav = append(nav, navItem{
-				Label:  st.resources[name].LabelPlural,
-				URL:    a.cfg.basePath + "/" + name,
-				Active: name == current,
-			})
-		}
+	st := stateFromContext(r.Context())
+	for _, name := range a.listableResources(r, st) {
+		nav = append(nav, navItem{
+			Label:  st.resources[name].LabelPlural,
+			URL:    a.cfg.basePath + "/" + name,
+			Active: name == current,
+		})
 	}
 	return baseView{
 		Title:     title,

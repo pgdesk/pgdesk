@@ -274,3 +274,47 @@ func TestIntegrationRolesAuthorizer(t *testing.T) {
 		}
 	})
 }
+
+func TestIntegrationNavHidesUnlistableResources(t *testing.T) {
+	onlyUsers := pgdesk.AuthorizerFunc(func(ctx context.Context, attrs pgdesk.Attributes) (pgdesk.Decision, error) {
+		switch attrs.Capability {
+		case pgdesk.CapAccessAdmin:
+			return pgdesk.Allow, nil
+		case pgdesk.CapList, pgdesk.CapView:
+			if attrs.Resource == "fk_users" {
+				return pgdesk.Allow, nil
+			}
+			return pgdesk.Deny, nil
+		}
+		return pgdesk.Abstain, nil
+	})
+	admin, _ := fkAdmin(t, pgdesk.WithAuthorizer(onlyUsers))
+
+	for _, path := range []string{"/admin/", "/admin/fk_users"} {
+		rec := do(admin, httptest.NewRequest("GET", path, nil))
+		if rec.Code != http.StatusOK {
+			t.Fatalf("%s status = %d, want 200", path, rec.Code)
+		}
+		body := rec.Body.String()
+		if !strings.Contains(body, "/admin/fk_users") {
+			t.Errorf("%s omits a resource the operator MAY list:\n%s", path, body)
+		}
+		for _, hidden := range []string{"/admin/fk_orders", "/admin/fk_numeric", "/admin/fk_composite"} {
+			if strings.Contains(body, hidden) {
+				t.Errorf("%s offers %s, which this operator may not list", path, hidden)
+			}
+		}
+	}
+}
+
+func TestIntegrationNavShowsEverythingWhenPermitted(t *testing.T) {
+	admin, _ := fkAdmin(t)
+
+	rec := do(admin, httptest.NewRequest("GET", "/admin/", nil))
+	body := rec.Body.String()
+	for _, want := range []string{"/admin/fk_users", "/admin/fk_orders", "/admin/fk_numeric"} {
+		if !strings.Contains(body, want) {
+			t.Errorf("index omits %s for a fully permitted operator", want)
+		}
+	}
+}
