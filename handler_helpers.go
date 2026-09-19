@@ -65,7 +65,10 @@ func (a *Admin) buildFormFields(res *Resource, cols []*introspect.Column, row ma
 	fields := make([]formField, 0, len(cols))
 	for _, c := range cols {
 		fc := res.fields[c.Name]
-		readonly := c.IsGenerated || (fc != nil && fc.readonly)
+		// A generated or identity-always column is dropped from every write by
+		// editableColumns/updatableColumns, so offering it as an input would
+		// invite the operator to type a value that is then silently discarded.
+		readonly := c.IsGenerated || c.IsIdentityAlways || (fc != nil && fc.readonly)
 		val := row[c.Name]
 		ff := formField{
 			Name:        c.Name,
@@ -73,8 +76,10 @@ func (a *Admin) buildFormFields(res *Resource, cols []*introspect.Column, row ma
 			Value:       val,
 			ValueString: render.FormatValue(val),
 			Readonly:    readonly,
-			Required:    fc != nil && fc.required || (!c.Nullable && !c.HasDefault && !c.IsGenerated),
-			Widget:      string(widgetFor(c, fc)),
+			// Nothing the operator cannot write is demanded of them: a readonly
+			// input has no way to satisfy a required marker.
+			Required: fc != nil && fc.required || (!c.Nullable && !c.HasDefault && !readonly),
+			Widget:   string(widgetFor(c, fc)),
 		}
 		if ff.Widget == string(WidgetCheckbox) {
 			ff.Checked = isTruthy(val)

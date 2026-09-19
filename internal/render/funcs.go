@@ -1,13 +1,10 @@
 package render
 
 import (
-	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"html/template"
 	"strings"
-	"time"
-	"unicode/utf8"
 )
 
 // StaticFuncs returns the template functions available at parse time to every
@@ -36,33 +33,6 @@ func CellValue(v any) template.HTML {
 		return `<span class="pg-badge pg-badge-off">No</span>`
 	}
 	return template.HTML(template.HTMLEscapeString(FormatValue(v)))
-}
-
-// FormatValue renders a scanned DB value as a plain display string. The template
-// escapes the result, so this returns text and never markup (F1). SQL NULL
-// (nil) renders as an empty string.
-func FormatValue(v any) string {
-	switch x := v.(type) {
-	case nil:
-		return ""
-	case string:
-		return x
-	case []byte:
-		// bytea and jsonb both arrive as []byte via pgx. Valid UTF-8 (jsonb,
-		// text-ish blobs) renders as its text; genuine binary (bytea) is
-		// hex-encoded with a leading \x (Postgres bytea convention) so it never
-		// dumps raw bytes into HTML or corrupts CSV.
-		if utf8.Valid(x) {
-			return string(x)
-		}
-		return `\x` + hex.EncodeToString(x)
-	case time.Time:
-		return x.UTC().Format(time.RFC3339)
-	case fmt.Stringer:
-		return x.String()
-	default:
-		return fmt.Sprint(x)
-	}
 }
 
 // scriptSafeReplacer rewrites the bytes that could terminate or reinterpret a

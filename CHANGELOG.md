@@ -9,6 +9,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- `numeric`, `uuid`, `json`/`jsonb`, `time`, `interval`, `bit` and `point` values
+  now render as their PostgreSQL text form instead of a Go struct dump
+  (`{1050 -2 false finite true}`, `[72 63 80 ...]`, `map[a:1]`). This affected
+  every surface -- list, detail, CSV export and the edit form -- and because the
+  edit form pre-fills from the same value, a row with a `numeric` or `uuid` column
+  could not be saved at all: resubmitting the pre-filled value was rejected with
+  422 "One of the values has an invalid format."
+- `GENERATED ALWAYS AS IDENTITY` columns no longer render as editable, required
+  form inputs. The write path already dropped them, so anything typed there was
+  silently discarded. A readonly field is no longer marked required either.
 - Fixed documentation: bulk action example now uses correct `pgdesk.Keys` API instead of `[][]any`, with explanation of typed accessors and PgBouncer safety (#17)
 - Fixed `AuditEvent` doc comment to reference `Resource.Redact()` instead of non-existent `Field.Redact` (#37)
 - Improved adoption-review: resource identity encoding, scope enforcement, version token handling, export safety, and error handling hardening
