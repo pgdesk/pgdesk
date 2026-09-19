@@ -6,10 +6,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
-// InsertRow builds a parameterized INSERT with RETURNING (D3/D7). cols/vals are
-// the columns to write and their typed values; returning are the columns to read
-// back (so generated defaults and the new key are available without a
-// read-after-write). When cols is empty the row is all-defaults.
 func InsertRow(t *introspect.Table, cols []*introspect.Column, vals []any, returning []*introspect.Column) (string, []any, error) {
 	if len(cols) != len(vals) {
 		return "", nil, ErrColumnValueMismatch
@@ -39,13 +35,6 @@ func InsertRow(t *introspect.Table, cols []*introspect.Column, vals []any, retur
 	return b.String(), args.Values(), nil
 }
 
-// DeleteRow builds a parameterized DELETE by key (D3). keyCols/keyVals are the
-// resource's key columns and decoded values. returning, when non-empty, reads the
-// deleted row back (for the audit before-snapshot and 0-row detection).
-//
-// scope holds the principal's row constraints (O6), ANDed into the DELETE's own
-// WHERE. DELETE carries no version token, so this is the only thing that makes a
-// row-level delete rule race-free.
 func DeleteRow(t *introspect.Table, keyCols []*introspect.Column, keyVals []any, returning []*introspect.Column, scope []Filter) (string, []any, error) {
 	if len(keyCols) == 0 {
 		return "", nil, ErrNoKey

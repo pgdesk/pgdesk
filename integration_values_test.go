@@ -1,9 +1,5 @@
 //go:build integration
 
-// Regression tests for value rendering on real PostgreSQL: pgx decodes numeric,
-// uuid and json into wrapper types, and a Go-default rendering of those both
-// displays nonsense and breaks the edit-form round-trip (the pre-filled value is
-// rejected on submit, so the row cannot be saved at all).
 package pgdesk_test
 
 import (
@@ -53,7 +49,6 @@ func valuesAdmin(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 	return admin, pool
 }
 
-// Every screen that shows a value must show the value, not a Go struct dump.
 func TestIntegrationValuesRenderAsText(t *testing.T) {
 	admin, _ := valuesAdmin(t)
 
@@ -68,7 +63,7 @@ func TestIntegrationValuesRenderAsText(t *testing.T) {
 				t.Errorf("%s does not contain %q:\n%s", path, want, body)
 			}
 		}
-		// A Go struct/slice dump of a pgtype wrapper or a raw byte list.
+
 		for _, bad := range []string{"finite", "map[", "[72 63"} {
 			if strings.Contains(body, bad) {
 				t.Errorf("%s leaks a Go-formatted value (%q):\n%s", path, bad, body)
@@ -77,9 +72,6 @@ func TestIntegrationValuesRenderAsText(t *testing.T) {
 	}
 }
 
-// The edit form pre-fills current values. Submitting them back unchanged -- the
-// operator opens a row, edits one field, presses Save -- must succeed and leave
-// the untouched columns exactly as they were.
 func TestIntegrationEditFormRoundTripsValues(t *testing.T) {
 	admin, pool := valuesAdmin(t)
 	ctx := context.Background()
@@ -96,7 +88,6 @@ func TestIntegrationEditFormRoundTripsValues(t *testing.T) {
 		t.Fatalf("edit form missing version/csrf:\n%s", body)
 	}
 
-	// Resubmit exactly what the form pre-filled, changing only `note`.
 	form := url.Values{"_pgdesk_csrf": {csrf[1]}, "_version": {version[1]}, "note": {"edited"}}
 	for _, name := range []string{"ref", "amount", "qty", "meta"} {
 		form.Set(name, formValue(t, body, name))
@@ -129,8 +120,6 @@ func TestIntegrationEditFormRoundTripsValues(t *testing.T) {
 	}
 }
 
-// An identity-always primary key must not be offered as an editable, required
-// input: the write path drops it, so anything typed there is silently discarded.
 func TestIntegrationIdentityPKRendersReadonly(t *testing.T) {
 	admin, _ := valuesAdmin(t)
 

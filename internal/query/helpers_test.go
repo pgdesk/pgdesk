@@ -2,8 +2,6 @@ package query
 
 import "github.com/pgdesk/pgdesk/internal/introspect"
 
-// testTable builds a representative users table spanning every type category so
-// resolver/operator/key tests can exercise realistic columns.
 func testTable() *introspect.Table {
 	cols := []*introspect.Column{
 		{Name: "id", Position: 1, DataType: "int8", Category: introspect.CatNumeric},
@@ -27,8 +25,6 @@ func col(t *introspect.Table, name string) *introspect.Column {
 	return c
 }
 
-// twoColTable is a table with a composite (a, b) primary key, for exercising the
-// composite-key code paths.
 func twoColTable() *introspect.Table {
 	cols := []*introspect.Column{
 		{Name: "a", Position: 1, DataType: "int8", Category: introspect.CatNumeric},

@@ -31,7 +31,7 @@ func parse(t *testing.T, res *Resource, rawQuery string) (*listRequest, error) {
 	t.Helper()
 	a := &Admin{cfg: defaultConfig()}
 	req := httptest.NewRequest("GET", "/admin/users", nil)
-	req.URL.RawQuery = rawQuery // set directly so raw (unencoded) values don't panic NewRequest
+	req.URL.RawQuery = rawQuery
 	return a.parseListRequest(req, res)
 }
 
@@ -55,18 +55,16 @@ func TestParseListValidFilters(t *testing.T) {
 	}
 }
 
-// TestParseListFailsClosed is the D3 assertion for list params: anything not
-// resolvable/permitted is rejected, never passed through.
 func TestParseListFailsClosed(t *testing.T) {
 	res := filterTestResource()
 	cases := map[string]string{
 		"unknown filter column":     "f_bogus=1",
-		"non-filterable column":     "f_email__ilike=x", // email is searchable, not filterable
+		"non-filterable column":     "f_email__ilike=x",
 		"operator not for category": "f_status__lt=active",
 		"bad value type":            "f_created_at__gt=not-a-date",
 		"enum value not a label":    "f_status=deleted",
 		"sort column not displayed": "sort=password",
-		"injection in filter":       "f_status=active' OR 1=1--", // not a valid enum label -> rejected
+		"injection in filter":       "f_status=active' OR 1=1--",
 	}
 	for name, q := range cases {
 		t.Run(name, func(t *testing.T) {
@@ -77,15 +75,12 @@ func TestParseListFailsClosed(t *testing.T) {
 	}
 }
 
-// TestEscapeLike proves issue #15a/#13c is fixed: LIKE metacharacters in a
-// search/filter term are escaped (backslash first) so they match literally and
-// a trailing backslash can't raise Postgres 22025.
 func TestEscapeLike(t *testing.T) {
 	cases := map[string]string{
 		"50%":      `50\%`,
 		"a_b":      `a\_b`,
 		`back\end`: `back\\end`,
-		`trail\`:   `trail\\`, // trailing backslash escaped -> no 22025
+		`trail\`:   `trail\\`,
 		"100%_off": `100\%\_off`,
 		"plain":    "plain",
 	}
@@ -96,11 +91,9 @@ func TestEscapeLike(t *testing.T) {
 	}
 }
 
-// TestSearchTermEscaped proves the escape is applied where the term is wrapped
-// with %...% for ILIKE search.
 func TestSearchTermEscaped(t *testing.T) {
 	res := filterTestResource()
-	lr, err := parse(t, res, "q=50%25") // %25 decodes to a literal '%'
+	lr, err := parse(t, res, "q=50%25")
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}
@@ -109,15 +102,13 @@ func TestSearchTermEscaped(t *testing.T) {
 	}
 }
 
-// TestILikeFilterEscaped proves the escape is applied on the text ilike filter
-// path, including a trailing backslash that would otherwise error in Postgres.
 func TestILikeFilterEscaped(t *testing.T) {
 	res := filterTestResource()
 	res.Filters("email")
 	if res.err != nil {
 		t.Fatalf("Filters: %v", res.err)
 	}
-	lr, err := parse(t, res, `f_email__ilike=a_b%5C`) // %5C decodes to a trailing backslash
+	lr, err := parse(t, res, `f_email__ilike=a_b%5C`)
 	if err != nil {
 		t.Fatalf("parse: %v", err)
 	}

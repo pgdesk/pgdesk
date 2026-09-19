@@ -9,7 +9,6 @@ import (
 	"testing"
 )
 
-// formValue extracts the value a form pre-filled for the named field.
 func formValue(t *testing.T, body, name string) string {
 	t.Helper()
 	pats := []string{
@@ -26,9 +25,6 @@ func formValue(t *testing.T, body, name string) string {
 	return ""
 }
 
-// formRow returns the .pg-form-row block containing the named field. It slices
-// rather than matching: RE2 has no lookahead, so a "shortest block containing X"
-// pattern is not expressible as a regexp.
 func formRow(t *testing.T, body, name string) string {
 	t.Helper()
 	marker := fmt.Sprintf(`id="f_%s"`, name)
@@ -46,8 +42,6 @@ func formRow(t *testing.T, body, name string) string {
 
 var entities = regexp.MustCompile(`&(amp|quot|#34|#39|lt|gt);`)
 
-// html reverses the entity escaping html/template applies inside an attribute,
-// recovering the literal value a browser would submit.
 func html(s string) string {
 	return entities.ReplaceAllStringFunc(s, func(e string) string {
 		switch e {

@@ -11,10 +11,8 @@ import (
 	"github.com/pgdesk/pgdesk/internal/render"
 )
 
-// update regenerates golden files: go test -run TestGolden -update.
 var update = flag.Bool("update", false, "update golden files")
 
-// Random per-request tokens (nonce, CSRF) are normalized so goldens are stable.
 var (
 	reNonce = regexp.MustCompile(`nonce="[^"]*"`)
 	reCSRF  = regexp.MustCompile(`value="[^"]*\.[^"]*"`)
@@ -26,10 +24,6 @@ func normalizeHTML(s string) string {
 	return s
 }
 
-// TestGoldenPages renders representative pages with adversarial content and
-// compares against committed golden files. It guards against accidental escaping
-// regressions (F1): if a future change unescapes DB/request content, the golden
-// diff makes it obvious.
 func TestGoldenPages(t *testing.T) {
 	a := testAdmin(t)
 	base := baseView{Title: "Users", SiteTitle: "Ops", BasePath: "/admin"}
@@ -44,7 +38,7 @@ func TestGoldenPages(t *testing.T) {
 			Headers:       []sortHeader{{Label: "Email", URL: "/admin/users?sort=email"}},
 			Rows:          []rowView{{Cells: []cellView{{Value: xss}, {Label: "ref " + xss, Link: "/admin/orgs/1"}}, Key: "1"}},
 			InlineFilters: []filterField{{Label: "Status", Kind: "select", ParamKey: "f_status", Options: []string{"", "active"}}},
-			// An active chip whose value is request-derived: it must be escaped (F1).
+
 			ActiveChips: []filterChip{{Label: "Status", Value: xss, RemoveURL: "/admin/users"}},
 			ActiveCount: 1,
 			Actions:     []actionMeta{{Name: "suspend", Label: "Suspend " + xss, Confirm: "Sure?"}},

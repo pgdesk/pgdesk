@@ -11,8 +11,6 @@ func orgFilter(tbl *introspect.Table, v any) Filter {
 	return Filter{Col: col(tbl, "id"), Op: OpNe, Values: []any{v}}
 }
 
-// A scope predicate must be ANDed into the WHERE clause with its own $N, sharing
-// the placeholder counter with the key and SET values rather than colliding.
 func TestScopeSharesPlaceholderNumbering(t *testing.T) {
 	tbl := testTable()
 	cols := tbl.Columns()
@@ -35,7 +33,7 @@ func TestScopeSharesPlaceholderNumbering(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// SET is $1, key is $2, version is $3, so the scope must land on $4.
+
 	if !strings.Contains(upd, `xmin::text = $3 AND "id" <> $4`) {
 		t.Errorf("UpdateRow scope must follow the version guard: %s", upd)
 	}
@@ -55,8 +53,6 @@ func TestScopeSharesPlaceholderNumbering(t *testing.T) {
 	}
 }
 
-// ExistsRow answers "is this row reachable at all", so it carries the scope but
-// never a version predicate -- that is the whole point of the 409-vs-404 probe.
 func TestExistsRowHasScopeButNoVersion(t *testing.T) {
 	tbl := testTable()
 	sql, args, err := ExistsRow(tbl, tbl.PrimaryKey, []any{int64(1)}, []Filter{orgFilter(tbl, int64(2))})
@@ -77,12 +73,9 @@ func TestExistsRowHasScopeButNoVersion(t *testing.T) {
 	}
 }
 
-// The bulk-action key check ORs the selected keys and ANDs the scope, so a key
-// outside the scope simply is not counted.
 func TestCountRowsInScope(t *testing.T) {
 	tbl := testTable()
-	// Single-column key: a DISTINCT count over an IN list (protocol-safe, and
-	// DISTINCT so a duplicate or non-unique key cannot inflate the count).
+
 	sql, args, err := CountRowsInScope(tbl, tbl.PrimaryKey,
 		[][]any{{int64(1)}, {int64(2)}}, []Filter{orgFilter(tbl, int64(9))})
 	if err != nil {
@@ -95,7 +88,6 @@ func TestCountRowsInScope(t *testing.T) {
 		t.Errorf("args = %v", args)
 	}
 
-	// Composite key falls back to OR-of-AND groups with a plain count(*).
 	comp := twoColTable()
 	csql, cargs, err := CountRowsInScope(comp, comp.PrimaryKey,
 		[][]any{{int64(1), "a"}, {int64(2), "b"}}, nil)
@@ -110,7 +102,6 @@ func TestCountRowsInScope(t *testing.T) {
 		t.Errorf("composite args = %v", cargs)
 	}
 
-	// A key tuple of the wrong arity is rejected.
 	if _, _, err := CountRowsInScope(tbl, tbl.PrimaryKey, [][]any{{int64(1), int64(2)}}, nil); err != ErrKeyArity {
 		t.Errorf("bad arity: want ErrKeyArity, got %v", err)
 	}
@@ -122,8 +113,6 @@ func TestCountRowsInScope(t *testing.T) {
 	}
 }
 
-// A scope on the list rides in the same WHERE as the user's filters, so LIMIT
-// applies after it and the n+1 lookahead stays correct.
 func TestBuildListWithScope(t *testing.T) {
 	tbl := testTable()
 	sql, args, err := BuildList(tbl, ListParams{
@@ -143,12 +132,11 @@ func TestBuildListWithScope(t *testing.T) {
 	if !strings.Contains(sql, "LIMIT $3") {
 		t.Errorf("LIMIT must follow the scope: %s", sql)
 	}
-	if len(args) != 4 { // ilike, scope, limit, offset
+	if len(args) != 4 {
 		t.Errorf("args = %v", args)
 	}
 }
 
-// The <> operator must emit SQL, not fall through to the always-false default.
 func TestEmitFilterNe(t *testing.T) {
 	tbl := testTable()
 	args := &Args{}

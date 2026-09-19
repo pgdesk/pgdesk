@@ -16,7 +16,7 @@ func TestBuildListPKTiebreakerWithoutSort(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	// With no explicit sort, the PK alone provides the deterministic order.
+
 	if !strings.Contains(sql, `ORDER BY "id" ASC`) {
 		t.Errorf("expected PK ordering without a sort column: %s", sql)
 	}
@@ -42,8 +42,7 @@ func TestBuildListParameterized(t *testing.T) {
 	if !strings.Contains(sql, `ORDER BY "created_at" DESC`) {
 		t.Errorf("missing sort: %s", sql)
 	}
-	// A primary-key tiebreaker must follow the chosen sort so pagination over a
-	// non-unique/nullable sort column is stable.
+
 	if !strings.Contains(sql, `ORDER BY "created_at" DESC, "id" ASC`) {
 		t.Errorf("missing PK tiebreaker: %s", sql)
 	}
@@ -55,8 +54,6 @@ func TestBuildListParameterized(t *testing.T) {
 	}
 }
 
-// TestEmitFilterByOperator asserts each operator renders a parameterized clause
-// with a quoted catalog identifier -- never a request string in the SQL (D3).
 func TestEmitFilterByOperator(t *testing.T) {
 	tbl := testTable()
 	cases := []struct {
@@ -106,17 +103,16 @@ func TestBuildListWithFiltersAndSearch(t *testing.T) {
 	if !strings.Contains(sql, `WHERE "status" = $1 AND "is_admin" = $2 AND ("email" ILIKE $3 OR "full_name" ILIKE $3)`) {
 		t.Fatalf("unexpected WHERE: %s", sql)
 	}
-	// $3 shared by the search group; $4/$5 are limit/offset.
+
 	if len(args) != 5 || args[0] != "active" || args[1] != true || args[2] != "%ada%" {
 		t.Fatalf("args = %v", args)
 	}
 }
 
 func TestBuildFKLabels(t *testing.T) {
-	ref := testTable() // reuse as a stand-in referenced table
+	ref := testTable()
 	sql, args := BuildFKLabels(ref, col(ref, "id"), col(ref, "email"), []any{int64(1), int64(2)}, nil)
-	// Individual $N placeholders, not "= ANY($1)": a []any array arg fails to
-	// encode under pgx's PgBouncer-compatible modes.
+
 	if !strings.Contains(sql, `SELECT "id", "email" FROM "public"."users" WHERE "id" IN ($1, $2)`) {
 		t.Fatalf("unexpected FK label SQL: %s", sql)
 	}

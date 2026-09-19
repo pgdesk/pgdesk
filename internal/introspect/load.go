@@ -7,17 +7,10 @@ import (
 	"github.com/jackc/pgx/v5"
 )
 
-// TxBeginner is the minimal capability the loader needs: begin a transaction.
-// Both *pgxpool.Pool and *pgx.Conn satisfy it, so callers pass either.
 type TxBeginner interface {
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 }
 
-// Load builds an immutable *Catalog for the given schemas (D1). All reads run in
-// a SINGLE read-only RepeatableRead transaction so pg_catalog is never read
-// torn: tables, columns, keys, enums, FKs, and view updatability all come from
-// one consistent snapshot. If anything fails, Load returns an error and no
-// partial catalog.
 func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error) {
 	if len(schemas) == 0 {
 		return nil, fmt.Errorf("pgdesk/introspect: at least one schema is required")
@@ -29,7 +22,7 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 	if err != nil {
 		return nil, fmt.Errorf("pgdesk/introspect: begin snapshot tx: %w", err)
 	}
-	// Read-only tx: rollback is the correct, side-effect-free finalizer.
+
 	defer func() { _ = tx.Rollback(ctx) }()
 
 	enums, err := loadEnums(ctx, tx, schemas)
@@ -67,8 +60,6 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 	return NewCatalog(schemas, tables), nil
 }
 
-// relBuild is mutable scratch state used only during a single Load. It becomes an
-// immutable *Table at the end.
 type relBuild struct {
 	oid        uint32
 	schema     string
@@ -88,7 +79,6 @@ type relBuild struct {
 
 func relKey(schema, name string) string { return schema + "." + name }
 
-// loadEnums returns enum labels keyed by the enum type's oid, in sort order.
 func loadEnums(ctx context.Context, tx pgx.Tx, schemas []string) (map[uint32][]string, error) {
 	const q = `
 		SELECT e.enumtypid, e.enumlabel
@@ -114,16 +104,6 @@ func loadEnums(ctx context.Context, tx pgx.Tx, schemas []string) (map[uint32][]s
 	return out, rows.Err()
 }
 
-// loadRelations reads tables/views and their per-operation write capabilities +
-// comments. Capabilities come from pg_relation_is_updatable(oid, true), which is
-// authoritative for auto-updatable AND trigger-updatable (INSTEAD OF) views alike
-// -- unlike information_schema.views.is_updatable, which reports NO for a view
-// made writable purely by triggers and conflates INSERT with UPDATE/DELETE.
-//
-// The returned bitmask uses event bits UPDATE=4, INSERT=8, DELETE=16, so each
-// operation is tracked independently. hasXmin marks physical relations
-// (ordinary/partitioned tables and materialized views) whose xmin system column
-// is selectable; views and foreign tables have none (O1).
 func loadRelations(ctx context.Context, tx pgx.Tx, schemas []string) (map[string]*relBuild, []string, error) {
 	const q = `
 		SELECT c.oid, n.nspname, c.relname, c.relkind,
@@ -176,11 +156,8 @@ func loadRelations(ctx context.Context, tx pgx.Tx, schemas []string) (map[string
 	return rels, order, rows.Err()
 }
 
-// loadColumns reads columns for every relation and classifies their type.
 func loadColumns(ctx context.Context, tx pgx.Tx, schemas []string, rels map[string]*relBuild, enums map[uint32][]string) error {
-	// Domains (typtype = 'd') are resolved to their base type one level deep, so a
-	// domain over an enum classifies as an enum and a domain over a scalar keeps
-	// the scalar's category (D3). bt is the base type when t is a domain.
+
 	const q = `
 		SELECT n.nspname, c.relname,
 		       a.attname, a.attnum,
@@ -249,7 +226,6 @@ func loadColumns(ctx context.Context, tx pgx.Tx, schemas []string, rels map[stri
 	return rows.Err()
 }
 
-// loadPrimaryKeys reads ordered PK columns per relation.
 func loadPrimaryKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[string]*relBuild) error {
 	const q = `
 		SELECT n.nspname, c.relname, a.attname,
@@ -285,8 +261,6 @@ func loadPrimaryKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[
 	return rows.Err()
 }
 
-// loadForeignKeys reads outbound FK constraints, resolving attnums to column
-// names via each relation's byAttnum map (D4 uses these for batched lookups).
 func loadForeignKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[string]*relBuild) error {
 	const q = `
 		SELECT n.nspname, c.relname,
@@ -304,7 +278,7 @@ func loadForeignKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[
 		return fmt.Errorf("pgdesk/introspect: query foreign keys: %w", err)
 	}
 	defer rows.Close()
-	// Collect ref attnums so we can resolve referenced column names after.
+
 	type pendingFK struct {
 		rel       *relBuild
 		conkey    []int16
@@ -342,8 +316,7 @@ func loadForeignKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[
 				}
 			}
 		}
-		// Only keep fully-resolved FKs; a partial resolution is dropped rather
-		// than emitted incorrectly (fail closed on catalog surprises).
+
 		if len(fk.Columns) > 0 && len(fk.Columns) == len(fk.RefColumns) {
 			p.rel.fks = append(p.rel.fks, fk)
 		}
@@ -351,10 +324,6 @@ func loadForeignKeys(ctx context.Context, tx pgx.Tx, schemas []string, rels map[
 	return nil
 }
 
-// loadUniqueConstraints reads unique indexes (which back both unique constraints
-// and standalone unique indexes). PostgreSQL reports the index/constraint name in
-// a 23505 error, so this name->columns map lets pgdesk attach the violation to the
-// specific field(s) (D7). Primary keys are excluded (handled separately).
 func loadUniqueConstraints(ctx context.Context, tx pgx.Tx, schemas []string, rels map[string]*relBuild) error {
 	const q = `
 		SELECT n.nspname, c.relname, ic.relname AS index_name, i.indkey::int2[]
@@ -382,7 +351,7 @@ func loadUniqueConstraints(ctx context.Context, tx pgx.Tx, schemas []string, rel
 		uc := &UniqueConstraint{Name: idxName}
 		for _, an := range attnums {
 			if an == 0 {
-				continue // expression index column; has no plain column name
+				continue
 			}
 			if col := r.byAttnum[an]; col != nil {
 				uc.Columns = append(uc.Columns, col.Name)

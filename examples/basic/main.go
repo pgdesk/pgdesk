@@ -1,11 +1,3 @@
-// Command basic is the smallest pgdesk app: it exposes a "users" table as an
-// admin UI on the standard library's net/http. Read it top to bottom.
-//
-//	docker run --rm -e POSTGRES_PASSWORD=postgres -p 5432:5432 postgres:16
-//	DATABASE_URL=postgres://postgres:postgres@localhost:5432/postgres?sslmode=disable \
-//	  go run ./examples/basic
-//
-// Then open http://localhost:8080/admin/
 package main
 
 import (
@@ -28,7 +20,6 @@ func main() {
 	}
 	defer pool.Close()
 
-	// Create a small table with a few rows so there's something to see.
 	if _, err := pool.Exec(ctx, schema); err != nil {
 		log.Fatal(err)
 	}
@@ -36,7 +27,7 @@ func main() {
 	admin, err := pgdesk.New(pool,
 		pgdesk.WithSecretKey([]byte("dev-only-secret-change-me")),
 		pgdesk.WithAuthorizer(pgdesk.AllowAll),
-		pgdesk.WithMiddleware(demoLogin), // supplies a Principal; use real auth in production
+		pgdesk.WithMiddleware(demoLogin),
 		pgdesk.WithResource("users", func(r *pgdesk.Resource) {
 			r.ListDisplay("id", "email", "active", "created_at")
 			r.SearchFields("email")
@@ -55,8 +46,6 @@ func main() {
 	log.Fatal(http.ListenAndServe(":8080", mux))
 }
 
-// demoLogin attaches a demo operator to every request so the admin is usable
-// without a login system. Replace with your real authentication.
 func demoLogin(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		next.ServeHTTP(w, r.WithContext(pgdesk.WithPrincipal(r.Context(), operator{})))

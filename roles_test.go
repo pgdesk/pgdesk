@@ -6,8 +6,6 @@ import (
 	"testing"
 )
 
-// roleOperator declares its roles, so the shipped Roles authorizer can read them
-// without knowing the host's concrete type.
 type roleOperator struct {
 	id    string
 	roles []string
@@ -17,7 +15,6 @@ func (o roleOperator) SubjectID() string   { return o.id }
 func (o roleOperator) DisplayName() string { return o.id }
 func (o roleOperator) Roles() []string     { return o.roles }
 
-// plainOperator is a Principal that does NOT declare roles.
 type plainOperator struct{ id string }
 
 func (o plainOperator) SubjectID() string   { return o.id }
@@ -39,8 +36,6 @@ var testGrants = Roles{
 	"editor": {CapAccessAdmin, CapList, CapView, CapUpdate},
 }
 
-// A capability listed for one of the principal's roles is allowed; one listed for
-// no role they hold is Abstain, not Deny, so the rule composes.
 func TestRolesGrantsByRole(t *testing.T) {
 	viewer := roleOperator{id: "v", roles: []string{"viewer"}}
 
@@ -55,8 +50,6 @@ func TestRolesGrantsByRole(t *testing.T) {
 	}
 }
 
-// Holding several roles grants the union of their capabilities, and a role the map
-// does not mention contributes nothing rather than erroring.
 func TestRolesUnionAndUnknownRoles(t *testing.T) {
 	both := roleOperator{id: "b", roles: []string{"viewer", "editor", "nonexistent"}}
 
@@ -73,21 +66,16 @@ func TestRolesUnionAndUnknownRoles(t *testing.T) {
 	}
 }
 
-// A Principal that does not declare roles grants nothing. Abstain denies when this
-// is the only authorizer, so forgetting to implement RoleBearer fails closed
-// rather than opening the admin.
 func TestRolesPrincipalWithoutRolesGrantsNothing(t *testing.T) {
 	if got := decide(t, testGrants, plainOperator{id: "p"}, CapList, "users"); got != Abstain {
 		t.Errorf("principal without Roles() = %v, want Abstain", got)
 	}
-	// And a nil principal never reaches an authorizer, but must not panic if it does.
+
 	if got := decide(t, testGrants, nil, CapList, "users"); got != Abstain {
 		t.Errorf("nil principal = %v, want Abstain", got)
 	}
 }
 
-// The point of Abstain: a role grant composes with an independent narrowing rule,
-// and the narrowing rule wins wherever it applies.
 func TestRolesComposesWithNarrowingRule(t *testing.T) {
 	frozen := AuthorizerFunc(func(_ context.Context, attrs Attributes) (Decision, error) {
 		if attrs.Resource == "ledger" && attrs.Capability == CapUpdate {
@@ -106,9 +94,6 @@ func TestRolesComposesWithNarrowingRule(t *testing.T) {
 	}
 }
 
-// AllCapabilities is a convenience for "this role may do everything". It must
-// return a fresh slice, so a caller that appends to or sorts the result cannot
-// change what the next caller sees.
 func TestAllCapabilitiesIsFreshAndComplete(t *testing.T) {
 	first := AllCapabilities()
 	first[0] = "tampered"
@@ -117,8 +102,7 @@ func TestAllCapabilitiesIsFreshAndComplete(t *testing.T) {
 	if slices.Contains(second, "tampered") {
 		t.Error("AllCapabilities returns shared state; mutating one result changed the next")
 	}
-	// Every capability pgdesk checks must be present, or a role granted
-	// "everything" would silently lack one.
+
 	for _, want := range []Capability{
 		CapAccessAdmin, CapList, CapView, CapCreate, CapUpdate, CapDelete, CapRunAction,
 	} {
@@ -128,7 +112,6 @@ func TestAllCapabilitiesIsFreshAndComplete(t *testing.T) {
 	}
 }
 
-// A role granted every capability can do everything, including reach the admin.
 func TestRolesWithAllCapabilities(t *testing.T) {
 	az := Roles{"owner": AllCapabilities()}
 	owner := roleOperator{id: "o", roles: []string{"owner"}}
@@ -140,8 +123,6 @@ func TestRolesWithAllCapabilities(t *testing.T) {
 	}
 }
 
-// Authorize must not mutate the grant map: it is shared across every concurrent
-// request for the life of the admin.
 func TestRolesAuthorizeDoesNotMutateGrants(t *testing.T) {
 	grants := Roles{"viewer": {CapList}}
 	before := len(grants)
@@ -158,7 +139,6 @@ func TestRolesAuthorizeDoesNotMutateGrants(t *testing.T) {
 	}
 }
 
-// PrincipalRoles is the seam a host uses to read roles off any Principal.
 func TestPrincipalRoles(t *testing.T) {
 	if got := PrincipalRoles(roleOperator{id: "r", roles: []string{"a", "b"}}); len(got) != 2 {
 		t.Errorf("PrincipalRoles = %v, want 2 roles", got)

@@ -1,9 +1,6 @@
-// pgdesk progressive enhancement. Ships as an external, CSP-clean file (F2):
-// no inline handlers, no eval. The admin is fully functional without it.
 (function () {
   "use strict";
 
-  // --- Confirm destructive actions before submitting -----------------------
   document.addEventListener("submit", function (e) {
     var form = e.target;
     if (form && form.matches("[data-confirm]")) {
@@ -13,7 +10,6 @@
     }
   });
 
-  // --- Warn on navigating away from a form with unsaved changes ------------
   document.querySelectorAll("form.pg-form").forEach(function (form) {
     var dirty = false;
     form.addEventListener("input", function () { dirty = true; });
@@ -23,8 +19,6 @@
     });
   });
 
-  // --- Bulk-action helpers -------------------------------------------------
-  // Select-all toggles every row checkbox in the same table.
   document.querySelectorAll("[data-select-all]").forEach(function (master) {
     master.addEventListener("change", function () {
       var table = master.closest("table");
@@ -34,7 +28,6 @@
       });
     });
   });
-  // The action form confirms using the selected action's data-confirm text.
   document.querySelectorAll("form.pg-action-form").forEach(function (form) {
     form.addEventListener("submit", function (e) {
       var sel = form.querySelector('select[name="_action"]');
@@ -45,7 +38,6 @@
     });
   });
 
-  // --- Theme toggle (persisted; the FOUC-free initial set is inline) --------
   function currentTheme() {
     return document.documentElement.getAttribute("data-theme") ||
       (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
@@ -54,16 +46,10 @@
     btn.addEventListener("click", function () {
       var next = currentTheme() === "dark" ? "light" : "dark";
       document.documentElement.setAttribute("data-theme", next);
-      try { localStorage.setItem("pgdesk-theme", next); } catch (e) { /* ignore */ }
+      try { localStorage.setItem("pgdesk-theme", next); } catch (e) {  }
     });
   });
 
-
-  // --- Foreign-key picker ---------------------------------------------------
-  // Upgrades each [data-pg-fk] text input into a WAI-ARIA combobox that searches
-  // the referenced resource through its bounded options endpoint. The input keeps
-  // its name and value throughout, so the form submits the same key whether the
-  // operator picked an option or typed one: no hidden field to drift out of sync.
   document.querySelectorAll(".pg-fk[data-pg-fk-url]").forEach(function (wrap) {
     var input = wrap.querySelector(".pg-fk-input");
     var url = wrap.getAttribute("data-pg-fk-url");
@@ -106,8 +92,6 @@
       items[i].scrollIntoView({ block: "nearest" });
     }
 
-    // choose writes the key into the input -- the value the server parses -- and
-    // shows the label beside it, matching what a server-rendered form looks like.
     function choose(i) {
       if (!options[i]) return;
       input.value = options[i].value;
@@ -137,7 +121,6 @@
         li.setAttribute("role", "option");
         li.setAttribute("aria-selected", "false");
         var label = document.createElement("span");
-        // textContent, never innerHTML: an option label is database content.
         label.textContent = opt.label;
         var key = document.createElement("span");
         key.className = "pg-fk-option-key";
@@ -145,13 +128,12 @@
         li.appendChild(label);
         li.appendChild(key);
         li.addEventListener("mousedown", function (e) {
-          e.preventDefault(); // keep focus in the input
+          e.preventDefault();
           choose(i);
         });
         listbox.appendChild(li);
       });
       if (resp && resp.searchable === false) {
-        // The server could not apply the term, so these rows are NOT matches.
         var plain = document.createElement("li");
         plain.className = "pg-fk-note";
         plain.textContent = "This resource cannot be searched -- showing the first rows.";
@@ -173,19 +155,17 @@
         credentials: "same-origin",
         headers: { "Accept": "application/json" }
       }).then(function (res) {
-        // A refusal (no permission to list the referenced resource) simply means
-        // no picker: the input stays usable on its own.
         if (!res.ok) return null;
         return res.json();
       }).then(function (data) {
-        if (mine !== seq) return; // a newer keystroke already won
+        if (mine !== seq) return;
         if (data) render(data); else close();
       }).catch(function () { close(); });
     }
 
     input.addEventListener("input", function () {
       window.clearTimeout(timer);
-      timer = window.setTimeout(search, 180); // debounce: one query per pause
+      timer = window.setTimeout(search, 180);
     });
     input.addEventListener("keydown", function (e) {
       if (e.key === "ArrowDown") {
@@ -203,7 +183,6 @@
     input.addEventListener("blur", function () { window.setTimeout(close, 120); });
   });
 
-  // --- Keyboard shortcuts ---------------------------------------------------
   function isTyping(el) {
     return el && (el.tagName === "INPUT" || el.tagName === "TEXTAREA" ||
       el.tagName === "SELECT" || el.isContentEditable);

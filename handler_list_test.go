@@ -29,8 +29,8 @@ func TestSplitFilters(t *testing.T) {
 	}
 	cases := []struct{ total, wantInline, wantOverflow int }{
 		{0, 0, 0},
-		{4, 4, 0},                // at the threshold: no overflow disclosure
-		{5, listFilterPinned, 2}, // just over: pin 3, spill the rest
+		{4, 4, 0},
+		{5, listFilterPinned, 2},
 		{9, listFilterPinned, 9 - listFilterPinned},
 	}
 	for _, c := range cases {
@@ -47,8 +47,6 @@ func TestFilterChip(t *testing.T) {
 	res := &Resource{name: "users"}
 	r := httptest.NewRequest("GET", "/admin/users?f_status=active&page=3&sort=email", nil)
 
-	// An active select filter yields a chip whose RemoveURL drops its own param
-	// and resets pagination, while preserving unrelated params (sort).
 	chip, ok := a.filterChip(r, res, filterField{Label: "Status", Kind: "select", ParamKey: "f_status", Value: "active"})
 	if !ok {
 		t.Fatal("expected an active chip")
@@ -66,12 +64,10 @@ func TestFilterChip(t *testing.T) {
 		t.Errorf("RemoveURL should preserve unrelated params, got %q", chip.RemoveURL)
 	}
 
-	// A filter with no value produces no chip.
 	if _, ok := a.filterChip(r, res, filterField{Label: "Status", Kind: "select", ParamKey: "f_status"}); ok {
 		t.Error("an empty filter must not produce a chip")
 	}
 
-	// A daterange clears both bounds and renders an open-ended label.
 	chip, ok = a.filterChip(r, res, filterField{
 		Label: "Created", Kind: "daterange",
 		ParamKey: "f_created__gt", ParamKeyTo: "f_created__lt", Value: "2026-01-01",

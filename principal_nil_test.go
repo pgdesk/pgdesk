@@ -5,11 +5,6 @@ import (
 	"testing"
 )
 
-// nilProbePrincipal has pointer-receiver methods that panic on a nil receiver.
-// Attaching (*nilProbePrincipal)(nil) as a Principal wraps a nil pointer in a
-// non-nil interface; if any fail-closed gate ever mistook it for an authenticated
-// operator, SubjectID or DisplayName would run on the nil receiver and panic. A
-// clean pass therefore proves the guard prevented the call.
 type nilProbePrincipal struct{ id string }
 
 func (p *nilProbePrincipal) SubjectID() string {
@@ -26,9 +21,6 @@ func (p *nilProbePrincipal) DisplayName() string {
 	return p.id
 }
 
-// A typed-nil pointer principal must be indistinguishable from an absent one: both
-// deny. PrincipalFromContext is the single normalization point, so this table
-// covers every shape of "who is this" that a host can hand us.
 func TestPrincipalFromContextNormalizesNil(t *testing.T) {
 	real := &nilProbePrincipal{id: "alice"}
 
@@ -71,9 +63,6 @@ func TestPrincipalFromContextNormalizesNil(t *testing.T) {
 	}
 }
 
-// A typed-nil pointer principal must be denied by the authorization choke point,
-// even under AllowAll. If the guard failed, permitted would either call a method
-// on the nil receiver (panic) or wrongly report authorized (true).
 func TestPermittedDeniesTypedNilPrincipal(t *testing.T) {
 	ctx := WithPrincipal(context.Background(), (*nilProbePrincipal)(nil))
 

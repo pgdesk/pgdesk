@@ -1,8 +1,5 @@
 //go:build integration
 
-// Integration tests for the bounded foreign-key picker: the options endpoint
-// (authorization, row scope, result cap, search escaping) and the form/detail
-// rendering that drives it.
 package pgdesk_test
 
 import (
@@ -49,8 +46,6 @@ CREATE TABLE fk_numeric (id bigint PRIMARY KEY, qty bigint NOT NULL);
 INSERT INTO fk_numeric VALUES (1, 10), (2, 20);
 `
 
-// fkAdmin builds an admin over the fk_* fixture. Extra options are appended last
-// so a test can override the authorizer.
 func fkAdmin(t *testing.T, extra ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
 	t.Helper()
 	pool := capPool(t)
@@ -84,7 +79,6 @@ func fkAdmin(t *testing.T, extra ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool
 	return admin, pool
 }
 
-// optionsResponse mirrors the JSON contract the picker's client code consumes.
 type optionsResponse struct {
 	Options []struct {
 		Value string `json:"value"`
@@ -114,8 +108,6 @@ func labels(resp optionsResponse) []string {
 	return out
 }
 
-// The endpoint answers a search with (value, label) pairs drawn from the
-// referenced resource, using the same label column the list page uses.
 func TestIntegrationFKOptionsSearch(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -126,7 +118,7 @@ func TestIntegrationFKOptionsSearch(t *testing.T) {
 	if ct := rec.Header().Get("Content-Type"); !strings.HasPrefix(ct, "application/json") {
 		t.Errorf("Content-Type = %q, want application/json", ct)
 	}
-	// A search must never be cached: it is scoped to the principal.
+
 	if cc := rec.Header().Get("Cache-Control"); !strings.Contains(cc, "no-store") {
 		t.Errorf("Cache-Control = %q, want no-store", cc)
 	}
@@ -144,14 +136,11 @@ func TestIntegrationFKOptionsSearch(t *testing.T) {
 		t.Error("a 2-row result under the cap must not be truncated")
 	}
 
-	// An empty term lists the first page of options rather than erroring.
 	if _, all := fetchOptions(t, admin, "/admin/fk_users/options.json"); len(all.Options) != 5 {
 		t.Errorf("empty term returned %d options, want all 5", len(all.Options))
 	}
 }
 
-// The cap is what makes the picker safe on a large table: the endpoint returns at
-// most maxOptions rows and says so, never the whole table.
 func TestIntegrationFKOptionsIsBounded(t *testing.T) {
 	admin, _ := fkAdmin(t, pgdesk.WithMaxOptions(2))
 
@@ -164,9 +153,6 @@ func TestIntegrationFKOptionsIsBounded(t *testing.T) {
 	}
 }
 
-// Reading another table's rows obeys that table's own authorization. Without
-// CapList on the referenced resource there is no picker data, and the refusal is
-// JSON so the client can degrade rather than parse an HTML error page.
 func TestIntegrationFKOptionsRequiresListCapability(t *testing.T) {
 	deny := pgdesk.AuthorizerFunc(func(ctx context.Context, attrs pgdesk.Attributes) (pgdesk.Decision, error) {
 		if attrs.Resource == "fk_users" && attrs.Capability == pgdesk.CapList {
@@ -188,8 +174,6 @@ func TestIntegrationFKOptionsRequiresListCapability(t *testing.T) {
 	}
 }
 
-// The picker is a list query, so the referenced resource's row scope applies: an
-// operator must not be able to discover rows they could not list.
 func TestIntegrationFKOptionsRespectsRowScope(t *testing.T) {
 	scoped := pgdesk.ScopeOnly(func(ctx context.Context, attrs pgdesk.Attributes) ([]pgdesk.Constraint, error) {
 		if attrs.Resource == "fk_users" {
@@ -210,8 +194,6 @@ func TestIntegrationFKOptionsRespectsRowScope(t *testing.T) {
 	}
 }
 
-// A search term is data, not syntax: LIKE metacharacters must match literally
-// rather than turning the query into a wildcard scan.
 func TestIntegrationFKOptionsEscapesSearchTerm(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -225,8 +207,6 @@ func TestIntegrationFKOptionsEscapesSearchTerm(t *testing.T) {
 	}
 }
 
-// Nothing is exposed until it is named: an unregistered table has no resource, so
-// no authorizer and no row scope govern it, and it has no options endpoint.
 func TestIntegrationFKOptionsUnknownResourceIs404(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -235,9 +215,6 @@ func TestIntegrationFKOptionsUnknownResourceIs404(t *testing.T) {
 	}
 }
 
-// The form field stays a real, submittable input (so the admin still works with
-// no JavaScript) and carries the hooks the picker needs: the referenced resource
-// to search and the current value's label.
 func TestIntegrationFKFormRendersPicker(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -255,7 +232,6 @@ func TestIntegrationFKFormRendersPicker(t *testing.T) {
 		}
 	}
 
-	// On the edit form the current value's label is shown, not just the raw key.
 	rec := do(admin, httptest.NewRequest("GET", "/admin/fk_orders/1/edit", nil))
 	row := formRow(t, rec.Body.String(), "user_id")
 	if !strings.Contains(row, "ada@example.com") {
@@ -266,8 +242,6 @@ func TestIntegrationFKFormRendersPicker(t *testing.T) {
 	}
 }
 
-// The detail page showed raw foreign keys while the list page showed labels. Both
-// now resolve the label, and link to the referenced row.
 func TestIntegrationFKDetailShowsLabel(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -284,8 +258,6 @@ func TestIntegrationFKDetailShowsLabel(t *testing.T) {
 	}
 }
 
-// noPrincipalAdmin is the same fixture WITHOUT the principal-attaching middleware,
-// for asserting what an unauthenticated caller can learn.
 func noPrincipalAdmin(t *testing.T) *pgdesk.Admin {
 	t.Helper()
 	pool := capPool(t)
@@ -304,18 +276,13 @@ func noPrincipalAdmin(t *testing.T) *pgdesk.Admin {
 	return admin
 }
 
-// Authorization is decided before anything about the resource's shape is
-// reported. Otherwise the 404-vs-401 split tells an unauthenticated caller
-// whether a resource's key is single- or multi-column, which is schema
-// information they have not earned.
 func TestIntegrationFKOptionsAuthorizesBeforeReportingShape(t *testing.T) {
-	// Unauthenticated: 401, not the composite-key 404.
+
 	rec := do(noPrincipalAdmin(t), httptest.NewRequest("GET", "/admin/fk_composite/options.json", nil))
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("unauthenticated status = %d, want 401 (not a shape-revealing 404)", rec.Code)
 	}
 
-	// Authenticated but not permitted to list: 403, not the composite-key 404.
 	denied, _ := fkAdmin(t, pgdesk.WithAuthorizer(pgdesk.AuthorizerFunc(
 		func(ctx context.Context, attrs pgdesk.Attributes) (pgdesk.Decision, error) {
 			if attrs.Resource == "fk_composite" {
@@ -329,9 +296,6 @@ func TestIntegrationFKOptionsAuthorizesBeforeReportingShape(t *testing.T) {
 	}
 }
 
-// A resource with no text column to match cannot honour ?q=. It still serves a
-// bounded, browsable page -- but it must say the term was not applied, so the
-// operator is never shown unfiltered rows that look like search results.
 func TestIntegrationFKOptionsReportsUnsearchable(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -346,14 +310,11 @@ func TestIntegrationFKOptionsReportsUnsearchable(t *testing.T) {
 		t.Error("an unsearchable resource must still offer a browsable bounded page")
 	}
 
-	// A resource that can be searched says so.
 	if _, users := fetchOptions(t, admin, "/admin/fk_users/options.json?q=ada"); !users.Searchable {
 		t.Error("a resource with searchable text columns must report searchable=true")
 	}
 }
 
-// A readonly foreign key still resolves its label. The detail page showed it
-// while the form fell back to the raw key for the same column.
 func TestIntegrationFKReadonlyStillShowsLabel(t *testing.T) {
 	pool := capPool(t)
 	if _, err := pool.Exec(context.Background(), fkSchema); err != nil {

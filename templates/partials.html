@@ -6,7 +6,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>{{ .Title }} &middot; {{ .SiteTitle }}</title>
 <link rel="stylesheet" href="{{ .BasePath }}/_static/pgdesk.css">
-<script nonce="{{ nonce }}">/* FOUC-free theme init: static, developer-authored, nonce'd (F2) */
+<script nonce="{{ nonce }}">
 (function(){try{var t=localStorage.getItem('pgdesk-theme');if(t){document.documentElement.setAttribute('data-theme',t);}}catch(e){}})();
 </script>
 </head>
@@ -47,8 +47,6 @@
 </html>
 {{- end -}}
 
-{{- /* filterControl renders one list filter control from a filterField. Shared by
-       the inline bar and the "More filters" popover so the two never drift. */ -}}
 {{- define "filterControl" -}}
 <div class="pg-filter">
   <label for="pg-f-{{ .ParamKey }}">{{ .Label }}</label>

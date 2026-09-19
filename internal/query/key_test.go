@@ -19,18 +19,13 @@ func TestDecodeSingleNumericKey(t *testing.T) {
 	}
 }
 
-// TestDecodeHighPrecisionNumeric proves issue #13a is fixed: a numeric value
-// wider than int64 (and with a fractional part) round-trips as the EXACT
-// original string, never coerced to float64 -- so a filter on a
-// numeric(38,10) column does not silently miss rows to precision loss. pgx
-// binds a Go string to a numeric column and PG casts it at full precision.
 func TestDecodeHighPrecisionNumeric(t *testing.T) {
 	numeric := []*introspect.Column{{Name: "amount", DataType: "numeric", Category: introspect.CatNumeric}}
 	for _, raw := range []string{
-		"12345678901234567890.12", // > int64 with decimals
-		"99999999999999999999",    // > int64, integral
-		"-0.00000000001",          // tiny fractional, would round to 0 as float64
-		"1.5e10",                  // exponent form
+		"12345678901234567890.12",
+		"99999999999999999999",
+		"-0.00000000001",
+		"1.5e10",
 	} {
 		vals, err := DecodeKey(numeric, raw)
 		if err != nil {
@@ -44,7 +39,7 @@ func TestDecodeHighPrecisionNumeric(t *testing.T) {
 			t.Fatalf("numeric %q bound as %q, want the exact input string", raw, s)
 		}
 	}
-	// A plain int64-sized integer still takes the typed fast-path.
+
 	vals, err := DecodeKey(numeric, "42")
 	if err != nil {
 		t.Fatalf("DecodeKey(numeric, 42): %v", err)
@@ -54,8 +49,6 @@ func TestDecodeHighPrecisionNumeric(t *testing.T) {
 	}
 }
 
-// TestDecodeKeyFailsClosed is the D6 assertion: a non-numeric segment for a
-// numeric key is a 400 (ErrBadKey), never coerced to a string and never a 500.
 func TestDecodeKeyFailsClosed(t *testing.T) {
 	numeric := []*introspect.Column{{Name: "id", DataType: "int8", Category: introspect.CatNumeric}}
 	for _, bad := range []string{"'; drop", "abc", "1 OR 1=1", "", "0x10", "42; --", "\uff11\uff12\uff13"} {
@@ -132,9 +125,6 @@ func TestEncodeKeyArityChecks(t *testing.T) {
 	}
 }
 
-// FuzzDecodeKey asserts the D6 fail-closed contract under arbitrary input: for
-// a numeric key column, DecodeKey must either return a typed numeric value or an
-// error -- it must never panic and never return a raw string.
 func FuzzDecodeKey(f *testing.F) {
 	pk := []*introspect.Column{{Name: "id", DataType: "int8", Category: introspect.CatNumeric}}
 	seeds := []string{"1", "42", "'; drop", "", "~abc", "-5", "9999999999999999999999", "1.5"}
@@ -144,16 +134,14 @@ func FuzzDecodeKey(f *testing.F) {
 	f.Fuzz(func(t *testing.T, seg string) {
 		vals, err := DecodeKey(pk, seg)
 		if err != nil {
-			return // rejected -- the correct fail-closed outcome
+			return
 		}
 		if len(vals) != 1 {
 			t.Fatalf("accepted %q but returned %d values", seg, len(vals))
 		}
 		switch vals[0].(type) {
 		case int64, string:
-			// A plain int64 for integer keys, or the validated literal string
-			// for wide/decimal numerics (bound to PG at full precision). Never
-			// a float64 -- that would silently lose precision.
+
 		default:
 			t.Fatalf("numeric key %q decoded to non-numeric %T", seg, vals[0])
 		}

@@ -9,16 +9,10 @@ import (
 	"github.com/pgdesk/pgdesk/internal/render"
 )
 
-// TestWithTemplateFSOverridesBuiltin exercises the WithTemplateFS option path
-// (Gitea #25): a host-supplied fs.FS overlays the embedded templates, so a
-// template present in it replaces the shipped default while every other
-// built-in template is untouched. It mirrors exactly how newAdmin wires
-// cfg.templateFS into render.New (admin.go), without needing a live DB.
 func TestWithTemplateFSOverridesBuiltin(t *testing.T) {
 	cfg := defaultConfig()
 	override := fstest.MapFS{
-		// error.html is self-contained (no head/foot dependency) so this test
-		// doesn't need to build a full baseView.
+
 		"error.html": &fstest.MapFile{Data: []byte(
 			`{{- define "error" -}}CUSTOM-BRANDED-ERROR: {{ .Status }}{{- end -}}`)},
 	}
@@ -47,9 +41,6 @@ func TestWithTemplateFSOverridesBuiltin(t *testing.T) {
 	}
 }
 
-// TestWithoutTemplateFSKeepsBuiltinBehavior is the regression guard: when
-// WithTemplateFS is never called, cfg.templateFS stays nil and construction
-// behaves byte-for-byte like before this option existed.
 func TestWithoutTemplateFSKeepsBuiltinBehavior(t *testing.T) {
 	cfg := defaultConfig()
 	if cfg.templateFS != nil {

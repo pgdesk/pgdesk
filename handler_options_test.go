@@ -9,9 +9,6 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
-// fkState builds a catalog with orders.user_id -> users.id and registers both as
-// resources, plus a request carrying that state. registerUsers controls whether
-// the referenced table is a registered resource.
 func fkState(t *testing.T, registerUsers bool, az Authorizer) (*Admin, *Resource, *adminState) {
 	t.Helper()
 	usersID := col("id")
@@ -43,8 +40,6 @@ func fkState(t *testing.T, registerUsers bool, az Authorizer) (*Admin, *Resource
 	return a, ordersRes, st
 }
 
-// fkRequest carries the state snapshot AND a principal: authorization fails
-// closed without one, so a request lacking a principal gets no picker.
 func fkRequest(st *adminState) *http.Request {
 	r := httptest.NewRequest("GET", "/admin/orders/1/edit", nil)
 	ctx := withState(r.Context(), st)
@@ -57,18 +52,13 @@ func fkFormFields(t *testing.T, registerUsers bool, az Authorizer) map[string]fo
 	a, res, st := fkState(t, registerUsers, az)
 	r := fkRequest(st)
 	out := map[string]formField{}
-	// A nil foreign key -- the create-form shape -- so these cases assert the
-	// widget wiring without a database. The label lookup for an existing value is
-	// covered by TestIntegrationFKFormRendersPicker against real PostgreSQL.
+
 	for _, f := range a.buildFormFields(r, res, res.table.Columns(), map[string]any{"id": int64(1), "user_id": nil}, nil) {
 		out[f.Name] = f
 	}
 	return out
 }
 
-// A foreign-key column whose referenced table is a registered resource becomes a
-// picker: the template needs the widget and the referenced resource name to point
-// the options endpoint at.
 func TestBuildFormFieldsMarksForeignKeyPicker(t *testing.T) {
 	fields := fkFormFields(t, true, AllowAll)
 
@@ -78,15 +68,12 @@ func TestBuildFormFieldsMarksForeignKeyPicker(t *testing.T) {
 	if got := fields["user_id"].Ref; got != "users" {
 		t.Errorf("user_id ref resource = %q, want users", got)
 	}
-	// The plain key column is untouched.
+
 	if got := fields["id"].Widget; got == string(WidgetFK) {
 		t.Error("a non-FK column must not become a picker")
 	}
 }
 
-// Nothing is exposed until it is named: an FK pointing at a table the host never
-// registered gets no picker, because there is no resource whose authorizer and
-// row scope could govern reading it.
 func TestBuildFormFieldsSkipsPickerForUnregisteredTable(t *testing.T) {
 	fields := fkFormFields(t, false, AllowAll)
 
@@ -98,9 +85,6 @@ func TestBuildFormFieldsSkipsPickerForUnregisteredTable(t *testing.T) {
 	}
 }
 
-// The picker reads another table, so it needs CapView on the referenced resource.
-// Without it the field stays a plain input: no picker, and no hint that the
-// referenced rows exist.
 func TestBuildFormFieldsSkipsPickerWithoutViewOnReference(t *testing.T) {
 	denyUsers := AuthorizerFunc(func(ctx context.Context, attrs Attributes) (Decision, error) {
 		if attrs.Resource == "users" {
@@ -118,8 +102,6 @@ func TestBuildFormFieldsSkipsPickerWithoutViewOnReference(t *testing.T) {
 	}
 }
 
-// A host that asked for a specific widget keeps it: the FK default must not
-// silently override an explicit choice.
 func TestBuildFormFieldsExplicitWidgetBeatsFKDefault(t *testing.T) {
 	a, res, st := fkState(t, true, AllowAll)
 	res.fields["user_id"] = &fieldConfig{widget: WidgetTextarea}

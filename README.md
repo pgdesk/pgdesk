@@ -66,11 +66,11 @@ CSRF, nonce'd CSP, clickjacking & open-redirect defenses | readiness probe, hot
 catalog reload, metrics hook | flash messages, dark mode, keyboard shortcuts |
 opt-in auto-registration that logs its full exposed set at startup.
 
--> See the **[usage guide](docs/GUIDE.md)** for how to wire all of it, and the
-**[examples](examples)** for runnable apps: [basic](examples/basic),
+-> See the **[examples](examples)** for runnable apps: [basic](examples/basic),
 [session-auth](examples/session-auth), [gorm](examples/gorm) (pgdesk over a
 GORM-owned schema, sharing one pool), and [gin](examples/gin) (mounted behind a
-Gin router).
+Gin router). Every exported symbol is documented at
+[pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk).
 
 ## Security & scope
 
@@ -84,14 +84,6 @@ isolation, rate limiting, WAF, and session/auth to the host -- providing clean
 contracts (`Principal`, `Middleware`, `Authorizer`, `Metrics`) for each. Don't
 deploy it raw to the public internet expecting more than it claims.
 
-## Documentation
-
-- **[Usage guide](docs/GUIDE.md)** -- resources, actions, export, audit,
-  authorization, UI customization, and production operation.
-- **[Authorization design](docs/AUTHORIZATION.md)** -- row scoping, pagination,
-  concurrency, and bulk-action safety.
-- **[Architecture](docs/ARCHITECTURE.md)** -- the full design-decision log.
-
 ## Requirements
 
 - Go 1.25+ (floor set by pgx v5.10)
@@ -99,7 +91,7 @@ deploy it raw to the public internet expecting more than it claims.
 
 pgdesk follows [SemVer](https://semver.org/). **There is no tagged release yet**:
 the v1 feature set is complete and proven against real PostgreSQL, but the API is
-still pre-1.0 and breaking changes are called out in [CHANGELOG.md](CHANGELOG.md).
+still pre-1.0 and may change.
 
 ## License
 

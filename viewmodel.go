@@ -1,10 +1,5 @@
 package pgdesk
 
-// View models passed to templates. They contain only display-ready values; all
-// dynamic values are escaped by html/template at render time (F1). Keeping these
-// as explicit structs (no reflection in the request path) makes the data that
-// reaches a template auditable.
-
 type baseView struct {
 	Title     string
 	SiteTitle string
@@ -21,7 +16,7 @@ type navItem struct {
 }
 
 type flashMsg struct {
-	Level   string // "info" | "error"
+	Level   string
 	Message string
 }
 
@@ -42,8 +37,6 @@ type indexView struct {
 	Resources []resourceNav
 }
 
-// sortHeader is a clickable list column header carrying the URL that applies (or
-// toggles) sorting by that column while preserving the other query parameters.
 type sortHeader struct {
 	Label  string
 	URL    string
@@ -51,9 +44,6 @@ type sortHeader struct {
 	Desc   bool
 }
 
-// cellView is one rendered list cell. For a foreign-key column, Label holds the
-// batched-lookup label (D4) and Link the referenced detail URL (empty when the
-// referenced table is not a registered resource).
 type cellView struct {
 	Value any
 	Label string
@@ -65,7 +55,6 @@ type rowView struct {
 	Key   string
 }
 
-// filterField is one control in the list filter form.
 type actionMeta struct {
 	Name    string
 	Label   string
@@ -74,17 +63,14 @@ type actionMeta struct {
 
 type filterField struct {
 	Label      string
-	Kind       string // "select" | "bool" | "text" | "daterange"
+	Kind       string
 	ParamKey   string
-	ParamKeyTo string   // second param for "daterange"
-	Value      string   // current value
-	ValueTo    string   // current 'to' value for "daterange"
-	Options    []string // for "select"/"bool"
+	ParamKeyTo string
+	Value      string
+	ValueTo    string
+	Options    []string
 }
 
-// filterChip is a removable pill for a currently-active filter. RemoveURL is the
-// current list URL with this filter's parameter(s) cleared and pagination reset,
-// so following it simply drops the constraint (works without JavaScript).
 type filterChip struct {
 	Label     string
 	Value     string
@@ -103,11 +89,11 @@ type listView struct {
 	Actions         []actionMeta
 	HasActions      bool
 	ExportURL       string
-	InlineFilters   []filterField // always-visible filter controls
-	OverflowFilters []filterField // controls collapsed into the "More filters" popover
+	InlineFilters   []filterField
+	OverflowFilters []filterField
 	HasOverflow     bool
-	ActiveChips     []filterChip // removable pills for currently-applied filters
-	ActiveCount     int          // number of active filters (drives the mobile "Filters (n)" badge)
+	ActiveChips     []filterChip
+	ActiveCount     int
 	HasFilters      bool
 	Page            int
 	HasPrev         bool
@@ -116,9 +102,6 @@ type listView struct {
 	NextURL         string
 }
 
-// detailField is one row of the detail page. FKLabel/FKLink mirror cellView: a
-// foreign key shows the referenced row's label, linked to it, rather than the raw
-// key -- the same substitution the list page makes.
 type detailField struct {
 	Label   string
 	Value   any
@@ -139,26 +122,24 @@ type formField struct {
 	Name         string
 	Label        string
 	Value        any
-	ValueString  string // current value as a string, for <select> matching
-	CurrentValue any    // populated on a concurrent-edit conflict (O1)
+	ValueString  string
+	CurrentValue any
 	Error        string
 	Readonly     bool
 	Required     bool
 	Widget       string
 	Checked      bool
 	Options      []string
-	// Ref names the resource a foreign-key field searches for its options. Empty
-	// unless Widget is WidgetFK.
+
 	Ref string
-	// ValueLabel is the human label for the current foreign-key value, so a
-	// picker (and a JavaScript-less form) shows who row 7 is, not just "7".
+
 	ValueLabel string
 }
 
 type formView struct {
 	Base      baseView
 	Resource  resourceMeta
-	Action    string // form POST target (.../{key}/edit or .../new)
+	Action    string
 	IsCreate  bool
 	Key       string
 	Version   string

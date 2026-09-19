@@ -17,8 +17,6 @@ func keyedTable(schema, name string, fks ...*introspect.ForeignKey) *introspect.
 		[]*introspect.Column{id}, []*introspect.Column{id}, fks)
 }
 
-// multiSchemaCatalog holds a users table in BOTH public and billing -- the
-// shadowing case -- plus a billing-only invoices table.
 func multiSchemaCatalog() *introspect.Catalog {
 	return introspect.NewCatalog([]string{"public", "billing"}, []*introspect.Table{
 		keyedTable("public", "users"),
@@ -35,8 +33,6 @@ func autoCfg(exclude ...string) *autoRegisterConfig {
 	return ar
 }
 
-// A bare name matching a table in more than one configured schema must be a
-// construction error, not a silent first-match.
 func TestResolveTableRejectsAmbiguousName(t *testing.T) {
 	cat := multiSchemaCatalog()
 	both := []string{"public", "billing"}
@@ -45,7 +41,6 @@ func TestResolveTableRejectsAmbiguousName(t *testing.T) {
 		t.Fatalf("resolveTable(users) error = %v, want ErrAmbiguousTable", err)
 	}
 
-	// A name present in exactly one configured schema resolves to that schema.
 	tbl, err := resolveTable(cat, both, "invoices")
 	if err != nil {
 		t.Fatalf("resolveTable(invoices): %v", err)
@@ -54,7 +49,6 @@ func TestResolveTableRejectsAmbiguousName(t *testing.T) {
 		t.Errorf("invoices resolved to schema %q, want billing", tbl.Schema)
 	}
 
-	// Narrowing the configured schemas removes the ambiguity.
 	tbl, err = resolveTable(cat, []string{"public"}, "users")
 	if err != nil {
 		t.Fatalf("resolveTable(users) with one schema: %v", err)
@@ -88,13 +82,10 @@ func TestAutoRegisterRejectsAmbiguousName(t *testing.T) {
 	}
 }
 
-// autoRegister binds each resource to the table it discovered. Rejecting
-// ambiguous names already makes a bare-name re-resolve return the same table, so
-// this locks the binding rather than reproducing the old mismatch.
 func TestAutoRegisterBindsDiscoveredTable(t *testing.T) {
 	a := testAdmin(t, func(c *config) {
-		c.schemas = []string{"public", "billing"} // public first
-		c.autoRegister = autoCfg("users")         // sidestep the ambiguity
+		c.schemas = []string{"public", "billing"}
+		c.autoRegister = autoCfg("users")
 	})
 	st, err := a.buildState(multiSchemaCatalog())
 	if err != nil {
@@ -109,8 +100,6 @@ func TestAutoRegisterBindsDiscoveredTable(t *testing.T) {
 	}
 }
 
-// A resource name is a URL path segment. An unsafe one must fail construction
-// rather than produce an unroutable resource.
 func TestResourceNameMustBeURLSafe(t *testing.T) {
 	cat := introspect.NewCatalog([]string{"public"}, []*introspect.Table{
 		keyedTable("public", "user profiles"),
@@ -123,8 +112,6 @@ func TestResourceNameMustBeURLSafe(t *testing.T) {
 	}
 }
 
-// Auto-registration is discovery over whatever the database holds, so an unsafe
-// name is skipped like any other ineligible table rather than aborting the build.
 func TestAutoRegisterSkipsUnsafeNames(t *testing.T) {
 	cat := introspect.NewCatalog([]string{"public"}, []*introspect.Table{
 		keyedTable("public", "user profiles"),
@@ -143,8 +130,6 @@ func TestAutoRegisterSkipsUnsafeNames(t *testing.T) {
 	}
 }
 
-// A foreign key records the schema of the table it references. Resolving by bare
-// name lets a reference to billing.accounts read public.accounts instead.
 func TestResolveRefUsesForeignKeySchema(t *testing.T) {
 	acctID := col("id")
 	pubAccts := keyedTable("public", "accounts")
@@ -166,16 +151,12 @@ func TestResolveRefUsesForeignKeySchema(t *testing.T) {
 		t.Fatalf("foreign key to billing.accounts resolved to %q.accounts", ref.Schema)
 	}
 
-	// A reference outside the configured schemas is simply not resolvable.
 	outside := &introspect.ForeignKey{RefSchema: "internal", RefTable: "accounts"}
 	if _, ok := resolveRef(cat, outside); ok {
 		t.Error("resolveRef found a table outside the catalog")
 	}
 }
 
-// Resources are keyed by bare name, so a resource named "accounts" may be backed
-// by public.accounts while a foreign key points at billing.accounts. Linking to
-// it would send the operator to the wrong table.
 func TestRefResourceRequiresMatchingTable(t *testing.T) {
 	pubAccts := keyedTable("public", "accounts")
 	bilAccts := keyedTable("billing", "accounts")
@@ -194,8 +175,6 @@ func TestRefResourceRequiresMatchingTable(t *testing.T) {
 	}
 }
 
-// Authorization is admin-wide. The per-resource override is gone: it replaced the
-// admin authorizer rather than narrowing it, silently dropping its row scope.
 func TestResourceHasNoAuthorizeMethod(t *testing.T) {
 	var r any = &Resource{}
 	if _, ok := r.(interface{ Authorize(Authorizer) }); ok {

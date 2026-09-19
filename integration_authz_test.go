@@ -1,12 +1,5 @@
 //go:build integration
 
-// Authorization regressions for two defects that share one shape: a rule the UI
-// honours but a second path does not.
-//
-//   - CapAccessAdmin was checked only on the index page, so denying it hid the nav
-//     and left every resource route serving data.
-//   - The foreign-key picker offered only in-scope rows, but the write path
-//     accepted any key the operator typed.
 package pgdesk_test
 
 import (
@@ -21,9 +14,6 @@ import (
 	"github.com/pgdesk/pgdesk"
 )
 
-// denyCap builds an authorizer that denies one capability for one resource and
-// allows everything else -- the shape a host writes when it means "this operator
-// is not an admin" or "this operator cannot list users".
 func denyCap(cap pgdesk.Capability, resource string) pgdesk.Authorizer {
 	return pgdesk.AuthorizerFunc(func(ctx context.Context, attrs pgdesk.Attributes) (pgdesk.Decision, error) {
 		if attrs.Capability == cap && attrs.Resource == resource {
@@ -33,9 +23,6 @@ func denyCap(cap pgdesk.Capability, resource string) pgdesk.Authorizer {
 	})
 }
 
-// CapAccessAdmin is the front door. Denying it must lock the whole admin, not
-// just hide the index -- otherwise a host that writes the most natural possible
-// "not an admin" rule still serves every row to that operator.
 func TestIntegrationAccessAdminGatesEveryRoute(t *testing.T) {
 	admin, _ := fkAdmin(t, pgdesk.WithAuthorizer(denyCap(pgdesk.CapAccessAdmin, "")))
 
@@ -59,8 +46,6 @@ func TestIntegrationAccessAdminGatesEveryRoute(t *testing.T) {
 	}
 }
 
-// Static assets stay reachable: the 403 page itself loads the stylesheet, and an
-// asset carries no row data.
 func TestIntegrationAccessAdminStillServesAssets(t *testing.T) {
 	admin, _ := fkAdmin(t, pgdesk.WithAuthorizer(denyCap(pgdesk.CapAccessAdmin, "")))
 
@@ -70,8 +55,6 @@ func TestIntegrationAccessAdminStillServesAssets(t *testing.T) {
 	}
 }
 
-// Granting admin access leaves the per-route capabilities in charge: the gate
-// must narrow nothing else.
 func TestIntegrationAccessAdminGrantedIsUnaffected(t *testing.T) {
 	admin, _ := fkAdmin(t)
 
@@ -82,9 +65,6 @@ func TestIntegrationAccessAdminGrantedIsUnaffected(t *testing.T) {
 	}
 }
 
-// scopedFKAdmin confines fk_users to the acme tenant while leaving fk_orders
-// fully editable, so the only thing standing between the operator and an
-// out-of-scope reference is the write path's own check.
 func scopedFKAdmin(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 	t.Helper()
 	pool := capPool(t)
@@ -111,9 +91,6 @@ func scopedFKAdmin(t *testing.T) (*pgdesk.Admin, *pgxpool.Pool) {
 	return admin, pool
 }
 
-// authzTokens fetches a form and returns its CSRF cookie token and version token,
-// for use with the shared postForm helper (which puts the same token in both the
-// cookie and the field).
 func authzTokens(t *testing.T, admin *pgdesk.Admin, path string) (token, version string) {
 	t.Helper()
 	rec := do(admin, httptest.NewRequest("GET", path, nil))
@@ -130,14 +107,9 @@ func authzTokens(t *testing.T, admin *pgdesk.Admin, path string) (token, version
 	return k[1], version
 }
 
-// The picker withholds out-of-scope rows; the write path must refuse the same
-// keys. Otherwise the scope is advisory -- a hand-written POST reassigns a row to
-// a referenced record the operator cannot see, and the accept/reject answer
-// itself discloses which keys exist.
 func TestIntegrationUpdateRejectsOutOfScopeForeignKey(t *testing.T) {
 	admin, pool := scopedFKAdmin(t)
 
-	// user 3 (alan, tenant=other) is never offered.
 	_, opts := fetchOptions(t, admin, "/admin/fk_users/options.json")
 	for _, l := range labels(opts) {
 		if l == "alan@example.com" {
@@ -163,8 +135,6 @@ func TestIntegrationUpdateRejectsOutOfScopeForeignKey(t *testing.T) {
 	}
 }
 
-// The same rule on INSERT: a scoped operator must not create a row pointing at a
-// referenced record outside their scope.
 func TestIntegrationCreateRejectsOutOfScopeForeignKey(t *testing.T) {
 	admin, pool := scopedFKAdmin(t)
 
@@ -186,15 +156,13 @@ func TestIntegrationCreateRejectsOutOfScopeForeignKey(t *testing.T) {
 	}
 }
 
-// An in-scope key still saves: the check must reject only what the picker would
-// have withheld.
 func TestIntegrationWriteAcceptsInScopeForeignKey(t *testing.T) {
 	admin, pool := scopedFKAdmin(t)
 
 	token, version := authzTokens(t, admin, "/admin/fk_orders/1/edit")
 	rec := postForm(admin, "/admin/fk_orders/1/edit", token, url.Values{
 		"_version": {version},
-		"user_id":  {"2"}, "note": {"adam now"}, // adam, tenant=acme -- offered
+		"user_id":  {"2"}, "note": {"adam now"},
 	})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("save status = %d, want 303; body:\n%s", rec.Code, rec.Body.String())
@@ -209,15 +177,13 @@ func TestIntegrationWriteAcceptsInScopeForeignKey(t *testing.T) {
 	}
 }
 
-// With no scope on the referenced resource there is nothing to check, so the
-// write path must not pay for a lookup or refuse a valid key.
 func TestIntegrationWriteUnscopedForeignKeyUnaffected(t *testing.T) {
-	admin, pool := fkAdmin(t) // AllowAll, no Scoper
+	admin, pool := fkAdmin(t)
 
 	token, version := authzTokens(t, admin, "/admin/fk_orders/1/edit")
 	rec := postForm(admin, "/admin/fk_orders/1/edit", token, url.Values{
 		"_version": {version},
-		"user_id":  {"3"}, "note": {"fine"}, // out of nobody's scope
+		"user_id":  {"3"}, "note": {"fine"},
 	})
 	if rec.Code != http.StatusSeeOther {
 		t.Fatalf("save status = %d, want 303; body:\n%s", rec.Code, rec.Body.String())
@@ -232,7 +198,6 @@ func TestIntegrationWriteUnscopedForeignKeyUnaffected(t *testing.T) {
 	}
 }
 
-// roleOp is a Principal that declares roles, so pgdesk.Roles can read them.
 type roleOp struct{ roles []string }
 
 func (roleOp) SubjectID() string   { return "tester" }
@@ -248,13 +213,11 @@ func withRoles(roles ...string) pgdesk.Middleware {
 	}
 }
 
-// The shipped Roles authorizer end to end: a viewer reads, an editor writes, and
-// a role without CapAccessAdmin is locked out of the admin entirely.
 func TestIntegrationRolesAuthorizer(t *testing.T) {
 	grants := pgdesk.Roles{
 		"viewer": {pgdesk.CapAccessAdmin, pgdesk.CapList, pgdesk.CapView},
 		"editor": {pgdesk.CapAccessAdmin, pgdesk.CapList, pgdesk.CapView, pgdesk.CapUpdate},
-		"nobody": {pgdesk.CapList}, // deliberately lacks CapAccessAdmin
+		"nobody": {pgdesk.CapList},
 	}
 	build := func(t *testing.T, roles ...string) (*pgdesk.Admin, *pgxpool.Pool) {
 		t.Helper()
@@ -282,7 +245,7 @@ func TestIntegrationRolesAuthorizer(t *testing.T) {
 		if rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users", nil)); rec.Code != http.StatusOK {
 			t.Errorf("list = %d, want 200", rec.Code)
 		}
-		// The edit form requires CapUpdate, which viewer lacks.
+
 		if rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users/1/edit", nil)); rec.Code != http.StatusForbidden {
 			t.Errorf("edit form = %d, want 403", rec.Code)
 		}
