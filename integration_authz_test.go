@@ -231,3 +231,83 @@ func TestIntegrationWriteUnscopedForeignKeyUnaffected(t *testing.T) {
 		t.Errorf("fk_orders.user_id = %d, want 3", got)
 	}
 }
+
+// roleOp is a Principal that declares roles, so pgdesk.Roles can read them.
+type roleOp struct{ roles []string }
+
+func (roleOp) SubjectID() string   { return "tester" }
+func (roleOp) DisplayName() string { return "Tester" }
+func (o roleOp) Roles() []string   { return o.roles }
+
+func withRoles(roles ...string) pgdesk.Middleware {
+	return func(next http.Handler) http.Handler {
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			ctx := pgdesk.WithPrincipal(r.Context(), roleOp{roles: roles})
+			next.ServeHTTP(w, r.WithContext(ctx))
+		})
+	}
+}
+
+// The shipped Roles authorizer end to end: a viewer reads, an editor writes, and
+// a role without CapAccessAdmin is locked out of the admin entirely.
+func TestIntegrationRolesAuthorizer(t *testing.T) {
+	grants := pgdesk.Roles{
+		"viewer": {pgdesk.CapAccessAdmin, pgdesk.CapList, pgdesk.CapView},
+		"editor": {pgdesk.CapAccessAdmin, pgdesk.CapList, pgdesk.CapView, pgdesk.CapUpdate},
+		"nobody": {pgdesk.CapList}, // deliberately lacks CapAccessAdmin
+	}
+	build := func(t *testing.T, roles ...string) (*pgdesk.Admin, *pgxpool.Pool) {
+		t.Helper()
+		pool := capPool(t)
+		if _, err := pool.Exec(context.Background(), fkSchema); err != nil {
+			t.Fatalf("schema: %v", err)
+		}
+		admin, err := pgdesk.New(pool,
+			pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
+			pgdesk.WithAuthorizer(grants),
+			pgdesk.WithMiddleware(withRoles(roles...)),
+			pgdesk.WithResource("fk_users", func(r *pgdesk.Resource) {
+				r.ListDisplay("id", "email")
+			}),
+		)
+		if err != nil {
+			t.Fatalf("New: %v", err)
+		}
+		t.Cleanup(func() { _ = admin.Close() })
+		return admin, pool
+	}
+
+	t.Run("viewer reads but cannot write", func(t *testing.T) {
+		admin, _ := build(t, "viewer")
+		if rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users", nil)); rec.Code != http.StatusOK {
+			t.Errorf("list = %d, want 200", rec.Code)
+		}
+		// The edit form requires CapUpdate, which viewer lacks.
+		if rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users/1/edit", nil)); rec.Code != http.StatusForbidden {
+			t.Errorf("edit form = %d, want 403", rec.Code)
+		}
+	})
+
+	t.Run("editor may reach the edit form", func(t *testing.T) {
+		admin, _ := build(t, "editor")
+		if rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users/1/edit", nil)); rec.Code != http.StatusOK {
+			t.Errorf("edit form = %d, want 200", rec.Code)
+		}
+	})
+
+	t.Run("a role without CapAccessAdmin is locked out", func(t *testing.T) {
+		admin, _ := build(t, "nobody")
+		for _, path := range []string{"/admin/", "/admin/fk_users"} {
+			if rec := do(admin, httptest.NewRequest("GET", path, nil)); rec.Code != http.StatusForbidden {
+				t.Errorf("%s = %d, want 403 -- CapAccessAdmin gates every route", path, rec.Code)
+			}
+		}
+	})
+
+	t.Run("no roles grants nothing", func(t *testing.T) {
+		admin, _ := build(t)
+		if rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users", nil)); rec.Code != http.StatusForbidden {
+			t.Errorf("roleless principal = %d, want 403", rec.Code)
+		}
+	})
+}

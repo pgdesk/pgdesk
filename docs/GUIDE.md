@@ -171,6 +171,65 @@ func (auditLogger) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEven
 
 ## Authorization & row scoping
 
+### Roles (the short path)
+
+Most hosts want "these roles may do these things". `pgdesk.Roles` is a plain map
+and needs no adapter:
+
+```go
+pgdesk.WithAuthorizer(pgdesk.Roles{
+    "viewer": {pgdesk.CapAccessAdmin, pgdesk.CapList, pgdesk.CapView},
+    "editor": {pgdesk.CapAccessAdmin, pgdesk.CapList, pgdesk.CapView,
+               pgdesk.CapCreate, pgdesk.CapUpdate},
+    "owner":  pgdesk.AllCapabilities(),
+})
+```
+
+It reads the principal's roles through the optional `RoleBearer` interface, so your
+own user type opts in with one method:
+
+```go
+func (o operator) Roles() []string { return o.roles } // e.g. from a JWT or a header
+```
+
+Three things worth knowing:
+
+- **Include `CapAccessAdmin` in every role that should reach the admin at all.** It
+  gates every route, so a role without it is locked out entirely.
+- **A principal that does not implement `RoleBearer` holds no roles and is granted
+  nothing** -- forgetting the method fails closed rather than opening the admin.
+- **Grants are admin-wide by design.** A rule that narrows one resource is a
+  separate authorizer, so that adding it can only ever remove access:
+
+```go
+pgdesk.WithAuthorizer(pgdesk.DenyOverrides(roles, frozenLedger))
+```
+
+Behind a reverse proxy or an external authorization service that already resolved
+the identity (Envoy `ext_authz`, oauth2-proxy, Authelia), the middleware is just a
+header read -- and that is also how an external identity provider such as Keycloak
+is supported without pgdesk carrying any OIDC code:
+
+```go
+pgdesk.WithMiddleware(func(next http.Handler) http.Handler {
+    return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+        // Only trust these when the proxy is the ONLY route to this handler and
+        // it overwrites them on every request. A missing header must grant nothing.
+        id, role := r.Header.Get("X-User-ID"), r.Header.Get("X-Workspace-Role")
+        if id == "" || role == "" || role == "unknown" {
+            next.ServeHTTP(w, r) // no principal -> denied downstream
+            return
+        }
+        p := operator{id: id, roles: []string{role}}
+        next.ServeHTTP(w, r.WithContext(pgdesk.WithPrincipal(r.Context(), p)))
+    })
+})
+```
+
+### Writing an authorizer directly
+
+
+
 pgdesk separates authorization (which operations an operator may perform) from row scoping
 (which rows they may see or modify). The host supplies an `Authorizer` that answers *may I
 perform capability C?* and optionally implements `Scoper` to answer *which rows exist for

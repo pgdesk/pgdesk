@@ -46,6 +46,16 @@ unreleased and the API may still change. Breaking changes are called out as such
 
 ### Added
 
+- `pgdesk.Roles`, a shipped role-to-capability authorizer: a plain
+  `map[string][]Capability`, no builder and no new concepts. It reads the
+  principal's roles through the new optional `RoleBearer` interface (`Roles()
+  []string`), so a host opts in with one method instead of writing the
+  type-assert-and-switch boilerplate every authorizer previously needed.
+  `AllCapabilities()` returns a fresh slice of every capability for a role that may
+  do everything, and `PrincipalRoles` exposes the same read for hand-written
+  authorizers. Grants are admin-wide and yield `Abstain` rather than `Deny`, so
+  per-resource narrowing stays a separate authorizer in a `DenyOverrides` set and
+  adding one can only remove access.
 - Foreign-key pickers. A single-column foreign key whose referenced table is a
   registered resource now renders as a bounded search combobox on create/edit
   forms, and resolves to a linked label on the detail page (previously only the
