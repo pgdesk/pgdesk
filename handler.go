@@ -266,6 +266,7 @@ func (a *Admin) baseView(r *http.Request, title string) baseView {
 		SiteTitle: a.cfg.title,
 		BasePath:  a.cfg.basePath,
 		Principal: principal,
+		LogoutURL: a.cfg.logoutURL,
 		Nav:       nav,
 		Flash:     flashFromContext(r.Context()),
 	}

@@ -15,6 +15,7 @@ type config struct {
 	basePath      string
 	schemas       []string
 	loginURL      string
+	logoutURL     string
 	queryTimeout  time.Duration
 	exportTimeout time.Duration
 
@@ -165,6 +166,10 @@ func WithMiddleware(mw ...Middleware) Option {
 
 func WithLoginURL(url string) Option {
 	return func(c *config) { c.loginURL = url }
+}
+
+func WithLogoutURL(url string) Option {
+	return func(c *config) { c.logoutURL = url }
 }
 
 func WithAuthorizer(az Authorizer) Option {
