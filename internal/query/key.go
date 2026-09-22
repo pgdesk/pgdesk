@@ -2,6 +2,7 @@ package query
 
 import (
 	"encoding/base64"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -32,17 +33,42 @@ func EncodeKey(pk []*introspect.Column, vals []any) (string, error) {
 		return "", ErrKeyArity
 	}
 	if len(pk) == 1 {
-		return url.PathEscape(fmt.Sprint(vals[0])), nil
+		return url.PathEscape(keyText(vals[0])), nil
 	}
 	parts := make([]string, len(vals))
 	for i, v := range vals {
-		parts[i] = fmt.Sprint(v)
+		parts[i] = keyText(v)
 	}
 	blob, err := json.Marshal(parts)
 	if err != nil {
 		return "", fmt.Errorf("pgdesk/query: encoding composite key: %w", err)
 	}
 	return compositePrefix + keyEnc.EncodeToString(blob), nil
+}
+
+func keyText(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case [16]byte:
+		var b [36]byte
+		hex.Encode(b[0:8], x[0:4])
+		b[8] = '-'
+		hex.Encode(b[9:13], x[4:6])
+		b[13] = '-'
+		hex.Encode(b[14:18], x[6:8])
+		b[18] = '-'
+		hex.Encode(b[19:23], x[8:10])
+		b[23] = '-'
+		hex.Encode(b[24:36], x[10:16])
+		return string(b[:])
+	case time.Time:
+		return x.UTC().Format(time.RFC3339Nano)
+	case fmt.Stringer:
+		return x.String()
+	default:
+		return fmt.Sprint(x)
+	}
 }
 
 func DecodeKey(pk []*introspect.Column, seg string) ([]any, error) {
