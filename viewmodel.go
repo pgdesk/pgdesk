@@ -5,6 +5,7 @@ type baseView struct {
 	SiteTitle string
 	BasePath  string
 	Principal string
+	LogoutURL string
 	Nav       []navItem
 	Flash     []flashMsg
 }

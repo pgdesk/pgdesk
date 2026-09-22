@@ -182,6 +182,12 @@ a:hover { color: var(--pg-accent-hover); text-decoration: underline; text-underl
 }
 .pg-icon-btn:hover { color: var(--pg-text); background: var(--pg-hover); border-color: var(--pg-border-strong); }
 .pg-icon-btn svg { width: 17px; height: 17px; }
+.pg-logout { margin: 0; }
+.pg-logout button[type=submit] {
+  height: 34px; padding: 0 12px; border-radius: 8px; font-size: 13px; font-weight: 500;
+  color: var(--pg-text-2); background: transparent; border: 1px solid var(--pg-border);
+}
+.pg-logout button[type=submit]:hover { color: var(--pg-text); background: var(--pg-hover); border-color: var(--pg-border-strong); }
 
 .pg-ico-sun { display: none; } .pg-ico-moon { display: block; }
 @media (prefers-color-scheme: dark) {
