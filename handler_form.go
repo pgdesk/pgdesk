@@ -23,10 +23,33 @@ func (a *Admin) renderFormWithErrors(w http.ResponseWriter, r *http.Request, res
 		Action:    a.editAction(res, key),
 		Key:       key,
 		Version:   version,
-		FormError: me.formError,
+		FormError: withUnshownErrors(a, res, me, fields),
 		Fields:    fields,
 	}
 	a.renderPage(w, r, http.StatusUnprocessableEntity, "form", data)
+}
+
+func withUnshownErrors(a *Admin, res *Resource, me mappedError, fields []formField) string {
+	shown := make(map[string]bool, len(fields))
+	for _, f := range fields {
+		if !f.Readonly {
+			shown[f.Name] = true
+		}
+	}
+	msg := me.formError
+	for _, c := range res.table.Columns() {
+		e, ok := me.fieldErrors[c.Name]
+		if !ok || shown[c.Name] {
+			continue
+		}
+		line := a.fieldLabel(res, c) + " " + e + ", but it is not on this form."
+		if msg == "" {
+			msg = line
+		} else {
+			msg += " " + line
+		}
+	}
+	return msg
 }
 
 func (a *Admin) renderConflict(w http.ResponseWriter, r *http.Request, res *Resource, keyVals []any, submittedVersion string, scope []query.Filter) {

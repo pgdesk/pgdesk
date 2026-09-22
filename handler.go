@@ -229,6 +229,7 @@ func (a *Admin) handleIndex(w http.ResponseWriter, r *http.Request) {
 	data := indexView{
 		Base:      a.baseView(r, a.cfg.title),
 		Resources: items,
+		Groups:    groupIndex(items),
 	}
 	a.renderPage(w, r, http.StatusOK, "index", data)
 }
@@ -268,6 +269,7 @@ func (a *Admin) baseView(r *http.Request, title string) baseView {
 		Principal: principal,
 		LogoutURL: a.cfg.logoutURL,
 		Nav:       nav,
+		NavGroups: groupNav(nav),
 		Flash:     flashFromContext(r.Context()),
 	}
 }

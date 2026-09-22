@@ -1,67 +1,89 @@
 {{- define "form" -}}
 {{ template "head" .Base }}
-<div class="pg-form-header">
+<nav class="pg-crumbs" aria-label="Breadcrumb"><a href="{{ .Base.BasePath }}/">Home</a><span aria-hidden="true">/</span><a href="{{ .Base.BasePath }}/{{ .Resource.Name }}">{{ .Resource.LabelPlural }}</a>
+  {{- if not .IsCreate }}<span aria-hidden="true">/</span><a class="pg-mono" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}">{{ .Key }}</a>{{ end }}
+  <span aria-hidden="true">/</span><span aria-current="page">{{ if .IsCreate }}New{{ else }}Edit{{ end }}</span></nav>
+<header class="pg-page-header">
   <h1>{{ if .IsCreate }}New {{ .Resource.Label }}{{ else }}Edit {{ .Resource.Label }}{{ end }}</h1>
-</div>
+</header>
 
 {{- if .Conflict }}
-<div class="pg-conflict" role="alert">
+<div class="pg-alert pg-alert-warn" role="alert">
   <strong>This record was changed by someone else.</strong>
-  Review the current values below, then resubmit to overwrite, or go back to keep them.
+  Review the current values below, then save again to overwrite, or cancel to keep them.
 </div>
 {{- end }}
 
 {{- if .FormError }}
-<div class="pg-flash pg-flash-error">{{ .FormError }}</div>
+<div class="pg-alert pg-alert-error" role="alert">{{ .FormError }}</div>
 {{- end }}
 
-<form class="pg-form" method="post" action="{{ .Action }}">
+<form class="pg-form" method="post" action="{{ .Action }}" novalidate>
   {{ csrfField }}
   {{- if not .IsCreate }}
   <input type="hidden" name="_version" value="{{ .Version }}">
   {{- end }}
+  <section class="pg-card pg-form-card">
+  <div class="pg-form-grid">
   {{- range .Fields }}
   {{- $f := . }}
-  <div class="pg-form-row{{ if $f.Error }} pg-has-error{{ end }}">
-    <label for="f_{{ $f.Name }}">{{ $f.Label }}{{ if $f.Required }} <span class="pg-req">*</span>{{ end }}</label>
+  <div class="pg-form-row{{ if $f.Error }} pg-has-error{{ end }}{{ if or (eq $f.Widget "json") (eq $f.Widget "textarea") }} pg-form-row-wide{{ end }}">
+    <label for="f_{{ $f.Name }}">{{ $f.Label }}{{ if $f.Required }}<span class="pg-req" aria-hidden="true">*</span><span class="pg-sr-only"> (required)</span>{{ end }}</label>
     {{- if $f.Readonly }}
-    <input id="f_{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}" readonly>
+    <input id="f_{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}" readonly class="pg-readonly">
     {{- if $f.ValueLabel }}<span class="pg-fk-current">{{ $f.ValueLabel }}</span>{{ end }}
     {{- else if eq $f.Widget "checkbox" }}
-    <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="checkbox" value="true"{{ if $f.Checked }} checked{{ end }}>
+    <label class="pg-switch"><input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="checkbox" value="true"{{ if $f.Checked }} checked{{ end }}><span>{{ if $f.Checked }}Yes{{ else }}No{{ end }}</span></label>
     {{- else if eq $f.Widget "textarea" }}
-    <textarea id="f_{{ $f.Name }}" name="{{ $f.Name }}">{{ formatValue $f.Value }}</textarea>
+    <textarea id="f_{{ $f.Name }}" name="{{ $f.Name }}" rows="4"{{ if $f.Error }} aria-invalid="true" aria-describedby="e_{{ $f.Name }}"{{ end }}>{{ formatValue $f.Value }}</textarea>
     {{- else if eq $f.Widget "json" }}
-    <textarea id="f_{{ $f.Name }}" name="{{ $f.Name }}" class="pg-json">{{ formatValue $f.Value }}</textarea>
+    <textarea id="f_{{ $f.Name }}" name="{{ $f.Name }}" class="pg-json" rows="6" spellcheck="false"{{ if $f.Error }} aria-invalid="true" aria-describedby="e_{{ $f.Name }}"{{ end }}>{{ formatValue $f.Value }}</textarea>
     {{- else if eq $f.Widget "select" }}
-    <select id="f_{{ $f.Name }}" name="{{ $f.Name }}">
+    <select id="f_{{ $f.Name }}" name="{{ $f.Name }}"{{ if $f.Error }} aria-invalid="true" aria-describedby="e_{{ $f.Name }}"{{ end }}>
+      {{- if $f.Nullable }}
+      <option value=""{{ if eq $f.ValueString "" }} selected{{ end }}>— None —</option>
+      {{- else if $f.HasDefault }}
+      <option value=""{{ if eq $f.ValueString "" }} selected{{ end }}>Default</option>
+      {{- else if eq $f.ValueString "" }}
+      <option value="" disabled selected>Choose…</option>
+      {{- end }}
       {{- range $f.Options }}
       <option value="{{ . }}"{{ if eq . $f.ValueString }} selected{{ end }}>{{ . }}</option>
       {{- end }}
     </select>
     {{- else if eq $f.Widget "fk" }}
-
-    <div class="pg-fk" data-pg-fk="{{ $f.Ref }}" data-pg-fk-url="{{ $.Base.BasePath }}/{{ $f.Ref }}/options.json">
-      <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}"
-             autocomplete="off" class="pg-fk-input">
-      {{- if $f.ValueLabel }}
-      <span class="pg-fk-current">{{ $f.ValueLabel }}</span>
-      {{- end }}
+    <div class="pg-fk" data-pg-fk="{{ $f.Ref }}" data-pg-fk-url="{{ $.Base.BasePath }}/{{ $f.Ref }}/options.json"{{ if $f.Nullable }} data-pg-fk-nullable{{ end }}>
+      <input type="hidden" name="{{ $f.Name }}" value="{{ formatValue $f.Value }}" data-pg-fk-value>
+      <div class="pg-fk-control">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <input id="f_{{ $f.Name }}" type="text" class="pg-fk-search" autocomplete="off"
+               value="{{ if $f.ValueLabel }}{{ $f.ValueLabel }}{{ else }}{{ formatValue $f.Value }}{{ end }}"
+               placeholder="Search {{ $f.Ref }}…"{{ if $f.Error }} aria-invalid="true" aria-describedby="e_{{ $f.Name }}"{{ end }}>
+        {{- if $f.Nullable }}
+        <button type="button" class="pg-fk-clear" data-pg-fk-clear aria-label="Clear {{ $f.Label }}"{{ if eq (formatValue $f.Value) "" }} hidden{{ end }}><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg></button>
+        {{- end }}
+      </div>
+      <span class="pg-fk-key pg-mono" data-pg-fk-key>{{ formatValue $f.Value }}</span>
     </div>
+    {{- else if eq $f.Widget "datetime" }}
+    <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="datetime-local" step="1" value="{{ datetimeLocal $f.Value }}"{{ if $f.Error }} aria-invalid="true" aria-describedby="e_{{ $f.Name }}"{{ end }}>
     {{- else }}
-    <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}">
+    <input id="f_{{ $f.Name }}" name="{{ $f.Name }}" type="text" value="{{ formatValue $f.Value }}"{{ if $f.Error }} aria-invalid="true" aria-describedby="e_{{ $f.Name }}"{{ end }}>
     {{- end }}
-    {{- if $f.Error }}<div class="pg-field-error">{{ $f.Error }}</div>{{ end }}
+    {{- if $f.Error }}<div class="pg-field-error" id="e_{{ $f.Name }}" role="alert">{{ $f.Error }}</div>
+    {{- else if and $f.Hint (not $f.Readonly) }}<div class="pg-field-hint">{{ $f.Hint }}</div>{{ end }}
     {{- if $f.CurrentValue }}<div class="pg-current-value">Current: {{ formatValue $f.CurrentValue }}</div>{{ end }}
   </div>
   {{- end }}
+  </div>
+  </section>
   <div class="pg-form-actions">
-    <button type="submit" class="pg-btn pg-btn-primary">{{ if .IsCreate }}Create{{ else }}Save{{ end }}</button>
     {{- if .IsCreate }}
-    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Cancel</a>
+    <a class="pg-btn pg-btn-ghost" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Cancel</a>
     {{- else }}
-    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}">Cancel</a>
+    <a class="pg-btn pg-btn-ghost" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}">Cancel</a>
     {{- end }}
+    <button type="submit" class="pg-btn pg-btn-primary">{{ if .IsCreate }}Create {{ .Resource.Label }}{{ else }}Save changes{{ end }}</button>
   </div>
 </form>
 {{ template "foot" .Base }}

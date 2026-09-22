@@ -123,7 +123,10 @@ func TestIntegrationEditFormRoundTripsValues(t *testing.T) {
 func TestIntegrationIdentityPKRendersReadonly(t *testing.T) {
 	admin, _ := valuesAdmin(t)
 
-	for _, path := range []string{"/admin/val_rows/1/edit", "/admin/val_rows/new"} {
+	if body := do(admin, httptest.NewRequest("GET", "/admin/val_rows/new", nil)).Body.String(); strings.Contains(body, `id="f_id"`) {
+		t.Error("the create form asks for an identity PK the database assigns")
+	}
+	for _, path := range []string{"/admin/val_rows/1/edit"} {
 		rec := do(admin, httptest.NewRequest("GET", path, nil))
 		if rec.Code != 200 {
 			t.Fatalf("%s status = %d", path, rec.Code)

@@ -1,54 +1,51 @@
 {{- define "list" -}}
 {{ template "head" .Base }}
-<div class="pg-list-header">
+<nav class="pg-crumbs" aria-label="Breadcrumb"><a href="{{ .Base.BasePath }}/">Home</a><span aria-hidden="true">/</span><span aria-current="page">{{ .Resource.LabelPlural }}</span></nav>
+<header class="pg-page-header">
   <div>
     <h1>{{ .Resource.LabelPlural }}</h1>
-    {{- if .Resource.Description }}
-    <p class="pg-resource-description">{{ .Resource.Description }}</p>
-    {{- end }}
+    {{- if .Resource.Description }}<p class="pg-subtitle">{{ .Resource.Description }}</p>{{ end }}
   </div>
-  <div class="pg-list-header-actions">
-    <a class="pg-btn" href="{{ .ExportURL }}">Export CSV</a>
+  <div class="pg-page-actions">
+    <a class="pg-btn" href="{{ .ExportURL }}">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Export CSV</span></a>
     {{- if .CanCreate }}
-    <a class="pg-btn pg-btn-primary" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/new">Add {{ .Resource.Label }}</a>
+    <a class="pg-btn pg-btn-primary" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/new" data-pg-create>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add {{ .Resource.Label }}</span></a>
     {{- end }}
   </div>
-</div>
+</header>
 
 {{- if or .SearchEnabled .HasFilters }}
-<div class="pg-filterbar">
-  <input type="checkbox" id="pg-filter-toggle" class="pg-filter-toggle">
-  <label for="pg-filter-toggle" class="pg-btn pg-filter-trigger">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
-    Filters{{ if .ActiveCount }} <span class="pg-count">{{ .ActiveCount }}</span>{{ end }}
-  </label>
-  <form class="pg-filters" method="get" action="{{ .Base.BasePath }}/{{ .Resource.Name }}">
+<div class="pg-toolbar">
+  <form class="pg-toolbar-form" method="get" action="{{ .Base.BasePath }}/{{ .Resource.Name }}">
     {{- if .SearchEnabled }}
-    <div class="pg-filter">
-      <label for="pg-f-q">Search</label>
-      <input id="pg-f-q" type="search" name="q" value="{{ .Query }}" placeholder="Search...">
+    <div class="pg-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input id="pg-f-q" type="search" name="q" value="{{ .Query }}" placeholder="Search {{ .Resource.LabelPlural }}" aria-label="Search {{ .Resource.LabelPlural }}" data-pg-list-search>
     </div>
     {{- end }}
-    {{- range .InlineFilters }}{{ template "filterControl" . }}{{ end }}
-    {{- if .HasOverflow }}
-    <details class="pg-more">
-      <summary class="pg-btn">More filters</summary>
-      <div class="pg-more-panel">
+    {{- if .HasFilters }}
+    <details class="pg-filters-panel"{{ if .ActiveCount }} open{{ end }}>
+      <summary class="pg-btn">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 5h18M6 12h12M10 19h4"/></svg>
+        <span>Filters</span>{{ if .ActiveCount }}<span class="pg-count">{{ .ActiveCount }}</span>{{ end }}
+      </summary>
+      <div class="pg-filters">
+        {{- range .InlineFilters }}{{ template "filterControl" . }}{{ end }}
         {{- range .OverflowFilters }}{{ template "filterControl" . }}{{ end }}
       </div>
     </details>
     {{- end }}
-    <div class="pg-filter pg-filter-actions">
-      <button type="submit">Apply</button>
-      <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Reset</a>
-    </div>
+    <button type="submit" class="pg-btn pg-btn-primary">Apply</button>
+    {{- if or .Query .ActiveCount }}<a class="pg-btn pg-btn-ghost" href="{{ .Base.BasePath }}/{{ .Resource.Name }}">Reset</a>{{ end }}
   </form>
   {{- if .ActiveChips }}
   <div class="pg-chips" aria-label="Active filters">
     {{- range .ActiveChips }}
     <a class="pg-chip" href="{{ .RemoveURL }}">
-      <span class="pg-chip-key">{{ .Label }}:</span>&nbsp;{{ .Value }}
-      <span class="pg-chip-x" aria-hidden="true">&#215;</span><span class="pg-sr-only">Remove {{ .Label }} filter</span>
+      <span class="pg-chip-key">{{ .Label }}</span><span class="pg-chip-val">{{ .Value }}</span>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6 6 18M6 6l12 12"/></svg><span class="pg-sr-only">Remove {{ .Label }} filter</span>
     </a>
     {{- end }}
   </div>
@@ -61,53 +58,64 @@
   {{ csrfField }}
   <div class="pg-action-bar">
     <select name="_action" aria-label="Bulk action">
-      <option value="">Choose action...</option>
+      <option value="">Bulk action…</option>
       {{- range .Actions }}
       <option value="{{ .Name }}" data-confirm="{{ .Confirm }}">{{ .Label }}</option>
       {{- end }}
     </select>
-    <button type="submit">Apply to selected</button>
+    <button type="submit" class="pg-btn">Apply to selected</button>
   </div>
 {{- end }}
+<div class="pg-table-card">
+<div class="pg-table-scroll">
 <table class="pg-table">
   <caption class="pg-sr-only">{{ .Resource.LabelPlural }}</caption>
   <thead>
     <tr>
-      {{- if .HasActions }}<th class="pg-check-col"><input type="checkbox" data-select-all aria-label="Select all"></th>{{ end }}
+      {{- if .HasActions }}<th class="pg-check-col" scope="col"><input type="checkbox" data-select-all aria-label="Select all"></th>{{ end }}
       {{- range .Headers }}
-      <th aria-sort="{{ if .Active }}{{ if .Desc }}descending{{ else }}ascending{{ end }}{{ else }}none{{ end }}">
+      <th scope="col" aria-sort="{{ if .Active }}{{ if .Desc }}descending{{ else }}ascending{{ end }}{{ else }}none{{ end }}">
         <a class="pg-sort{{ if .Active }} pg-sort-active{{ end }}" href="{{ .URL }}">
-          {{ .Label }}{{ if .Active }}{{ if .Desc }} &#9662;{{ else }} &#9652;{{ end }}{{ end }}
+          <span>{{ .Label }}</span>
+          <svg viewBox="0 0 24 24" aria-hidden="true">{{ if .Active }}{{ if .Desc }}<path d="m6 9 6 6 6-6"/>{{ else }}<path d="m6 15 6-6 6 6"/>{{ end }}{{ else }}<path d="m8 9 4-4 4 4M8 15l4 4 4-4"/>{{ end }}</svg>
         </a>
       </th>
       {{- end }}
-      {{- if .HasDetail }}<th class="pg-actions-col"><span class="pg-sr-only">Details</span></th>{{ end }}
+      {{- if .HasDetail }}<th class="pg-actions-col" scope="col"><span class="pg-sr-only">Open</span></th>{{ end }}
     </tr>
   </thead>
   <tbody>
     {{- range .Rows }}
-    <tr>
+    <tr{{ if $.HasDetail }} data-pg-row-href="{{ $.Base.BasePath }}/{{ $.Resource.Name }}/{{ .Key }}"{{ end }}>
       {{- if $.HasActions }}<td class="pg-check-col"><input type="checkbox" name="key" value="{{ .Key }}" aria-label="Select row"></td>{{ end }}
       {{- range .Cells }}
-      <td>
-        {{- if .Link }}<a href="{{ .Link }}">{{ .Label }}</a>
+      <td class="{{ if not (or .Link .Label) }}{{ cellClass .Value }}{{ end }}">
+        {{- if .Link }}<a class="pg-fk-link" href="{{ .Link }}">{{ .Label }}</a>
         {{- else if .Label }}{{ .Label }}
-        {{- else }}{{ cellValue .Value }}{{ end }}
+        {{- else }}<span class="pg-cell">{{ cellValue .Value }}</span>{{ end }}
       </td>
       {{- end }}
-      {{- if $.HasDetail }}<td class="pg-actions-col"><a href="{{ $.Base.BasePath }}/{{ $.Resource.Name }}/{{ .Key }}">View</a></td>{{ end }}
+      {{- if $.HasDetail }}<td class="pg-actions-col"><a class="pg-row-open" href="{{ $.Base.BasePath }}/{{ $.Resource.Name }}/{{ .Key }}">Open<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>{{ end }}
     </tr>
     {{- else }}
-    <tr><td class="pg-empty" colspan="99">No records.</td></tr>
+    <tr><td class="pg-empty" colspan="99">
+      <div class="pg-empty-state">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <p>{{ if or .Query .ActiveCount }}No records match these filters.{{ else }}No records yet.{{ end }}</p>
+      </div>
+    </td></tr>
     {{- end }}
   </tbody>
 </table>
-{{- if .HasActions }}</form>{{ end }}
-
+</div>
 <nav class="pg-pager" aria-label="Pagination">
-  {{- if .HasPrev }}<a class="pg-page-prev" href="{{ .PrevURL }}">&larr; Previous</a>{{ end }}
   <span class="pg-page-info">Page {{ .Page }}</span>
-  {{- if .HasNext }}<a class="pg-page-next" href="{{ .NextURL }}">Next &rarr;</a>{{ end }}
+  <div class="pg-pager-links">
+    {{- if .HasPrev }}<a class="pg-btn" href="{{ .PrevURL }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Previous</span></a>{{ else }}<span class="pg-btn" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Previous</span></span>{{ end }}
+    {{- if .HasNext }}<a class="pg-btn" href="{{ .NextURL }}"><span>Next</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>{{ else }}<span class="pg-btn" aria-disabled="true"><span>Next</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>{{ end }}
+  </div>
 </nav>
+</div>
+{{- if .HasActions }}</form>{{ end }}
 {{ template "foot" .Base }}
 {{- end -}}

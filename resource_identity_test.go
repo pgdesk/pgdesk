@@ -181,3 +181,32 @@ func TestResourceHasNoAuthorizeMethod(t *testing.T) {
 		t.Fatal("Resource.Authorize must not exist; authorization is admin-wide")
 	}
 }
+
+func TestHumanizeAndSingular(t *testing.T) {
+	for in, want := range map[string]string{
+		"workspace_id":    "Workspace ID",
+		"api_keys":        "API Keys",
+		"oauth_providers": "OAuth Providers",
+		"last_used_ip":    "Last Used IP",
+		"avatar_url":      "Avatar URL",
+	} {
+		if got := humanize(in); got != want {
+			t.Errorf("humanize(%q) = %q, want %q", in, got, want)
+		}
+	}
+	for in, want := range map[string]string{
+		"workspace_memberships": "Workspace Membership",
+		"proxies":               "Proxy",
+		"messages":              "Message",
+		"api_keys":              "API Key",
+		"onboarding_state":      "Onboarding State",
+		"admin_audit_log":       "Admin Audit Log",
+		"addresses":             "Address",
+		"batches":               "Batch",
+		"status":                "Status",
+	} {
+		if got := singular(humanize(in)); got != want {
+			t.Errorf("singular(humanize(%q)) = %q, want %q", in, got, want)
+		}
+	}
+}

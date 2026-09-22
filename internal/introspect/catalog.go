@@ -37,6 +37,8 @@ type Column struct {
 
 	EnumLabels []string
 
+	Choices []string
+
 	Comment string
 }
 
