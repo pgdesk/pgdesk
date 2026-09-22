@@ -77,6 +77,13 @@ func (a *Admin) filterFields(res *Resource, lr *listRequest) []filterField {
 				Value: lr.rawFltr["f_"+c.Name+"__gt"], ValueTo: lr.rawFltr["f_"+c.Name+"__lt"],
 			})
 		case introspect.CatText:
+			if len(c.Choices) > 0 {
+				fields = append(fields, filterField{
+					Label: label, Kind: "select", ParamKey: "f_" + c.Name,
+					Value: lr.rawFltr["f_"+c.Name], Options: append([]string{""}, c.Choices...),
+				})
+				continue
+			}
 			fields = append(fields, filterField{
 				Label: label, Kind: "text", ParamKey: "f_" + c.Name + "__ilike",
 				Value: lr.rawFltr["f_"+c.Name+"__ilike"],

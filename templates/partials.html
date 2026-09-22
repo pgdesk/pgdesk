@@ -12,34 +12,63 @@
 </head>
 <body>
 <a class="pg-skip" href="#pg-main">Skip to content</a>
-<header class="pg-header">
+<header class="pg-topbar">
+  <button type="button" class="pg-icon-btn pg-nav-toggle" data-pg-nav-toggle aria-label="Toggle navigation" aria-controls="pg-nav" aria-expanded="false">
+    <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 6h16M4 12h16M4 18h16"/></svg>
+  </button>
   <a class="pg-brand" href="{{ .BasePath }}/">
-    <span class="pg-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24" fill="currentColor"><rect x="4" y="5" width="16" height="3.6" rx="1.4"/><rect x="4" y="10.4" width="16" height="3.2" rx="1.4" opacity=".85"/><rect x="4" y="15.6" width="10" height="3.2" rx="1.4" opacity=".6"/></svg></span>
-    {{ .SiteTitle }}
+    <span class="pg-brand-mark" aria-hidden="true"><svg viewBox="0 0 24 24"><ellipse cx="12" cy="5.5" rx="7.5" ry="3"/><path d="M4.5 5.5v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-6"/><path d="M4.5 11.5v6c0 1.66 3.36 3 7.5 3s7.5-1.34 7.5-3v-6"/></svg></span>
+    <span class="pg-brand-name">{{ .SiteTitle }}</span>
   </a>
-  <div class="pg-header-right">
-    <div class="pg-principal">{{ if .Principal }}{{ .Principal }}{{ else }}anonymous{{ end }}</div>
-    {{- if and .Principal .LogoutURL }}
-    <form method="post" action="{{ .LogoutURL }}" class="pg-logout"><button type="submit">Sign out</button></form>
+  <div class="pg-topbar-right">
+    {{- if .Principal }}
+    <span class="pg-principal" title="Signed in as {{ .Principal }}">
+      <span class="pg-avatar" aria-hidden="true">{{ initial .Principal }}</span>
+      <span class="pg-principal-name">{{ .Principal }}</span>
+    </span>
     {{- end }}
     <button type="button" class="pg-icon-btn" data-theme-toggle aria-label="Toggle dark mode" title="Toggle dark mode">
-      <svg class="pg-ico-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
-      <svg class="pg-ico-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <svg class="pg-ico-moon" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+      <svg class="pg-ico-sun" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
     </button>
+    {{- if and .Principal .LogoutURL }}
+    <form method="post" action="{{ .LogoutURL }}" class="pg-logout"><button type="submit" class="pg-btn pg-btn-ghost">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4M16 17l5-5-5-5M21 12H9"/></svg>
+      <span>Sign out</span></button></form>
+    {{- end }}
   </div>
 </header>
 <div class="pg-shell">
-  <nav class="pg-nav">
-    <ul>
-      {{- range .Nav }}
-      <li><a class="{{ if .Active }}pg-nav-active{{ end }}" href="{{ .URL }}">{{ .Label }}</a></li>
+  <nav class="pg-nav" id="pg-nav" aria-label="Tables">
+    <div class="pg-nav-search">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+      <input type="search" data-pg-nav-filter placeholder="Filter tables" aria-label="Filter tables" autocomplete="off">
+      <kbd aria-hidden="true">/</kbd>
+    </div>
+    <div class="pg-nav-groups">
+      {{- range .NavGroups }}
+      <section class="pg-nav-group" data-pg-nav-group>
+        <h2 class="pg-nav-letter" aria-hidden="true">{{ .Letter }}</h2>
+        <ul>
+          {{- range .Items }}
+          <li><a data-pg-nav-item class="{{ if .Active }}pg-nav-active{{ end }}"{{ if .Active }} aria-current="page"{{ end }} href="{{ .URL }}">{{ .Label }}</a></li>
+          {{- end }}
+        </ul>
+      </section>
       {{- end }}
-    </ul>
+      <p class="pg-nav-empty" data-pg-nav-empty hidden>No tables match.</p>
+    </div>
   </nav>
   <main class="pg-main" id="pg-main" tabindex="-1">
+    <div class="pg-flashes" aria-live="polite">
     {{- range .Flash }}
-    <div class="pg-flash pg-flash-{{ .Level }}">{{ .Message }}</div>
+    <div class="pg-flash pg-flash-{{ .Level }}" role="status">
+      {{- if eq .Level "error" }}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg>
+      {{- else }}<svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="m8 12 3 3 5-6"/></svg>{{ end }}
+      <span>{{ .Message }}</span>
+    </div>
     {{- end }}
+    </div>
 {{- end -}}
 
 {{- define "foot" -}}
@@ -60,8 +89,10 @@
     {{- end }}
   </select>
   {{- else if eq .Kind "daterange" }}
-  <input id="pg-f-{{ .ParamKey }}" type="text" name="{{ .ParamKey }}" value="{{ .Value }}" placeholder="From">
-  <input type="text" name="{{ .ParamKeyTo }}" value="{{ .ValueTo }}" placeholder="To" aria-label="{{ .Label }} to">
+  <div class="pg-range">
+    <input id="pg-f-{{ .ParamKey }}" type="text" name="{{ .ParamKey }}" value="{{ .Value }}" placeholder="From (YYYY-MM-DD)">
+    <input type="text" name="{{ .ParamKeyTo }}" value="{{ .ValueTo }}" placeholder="To" aria-label="{{ .Label }} to">
+  </div>
   {{- else }}
   <input id="pg-f-{{ .ParamKey }}" type="text" name="{{ .ParamKey }}" value="{{ .Value }}">
   {{- end }}

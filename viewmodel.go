@@ -7,6 +7,7 @@ type baseView struct {
 	Principal string
 	LogoutURL string
 	Nav       []navItem
+	NavGroups []navGroup
 	Flash     []flashMsg
 }
 
@@ -14,6 +15,11 @@ type navItem struct {
 	Label  string
 	URL    string
 	Active bool
+}
+
+type navGroup struct {
+	Letter string
+	Items  []navItem
 }
 
 type flashMsg struct {
@@ -35,6 +41,12 @@ type resourceNav struct {
 
 type indexView struct {
 	Base      baseView
+	Resources []resourceNav
+	Groups    []indexGroup
+}
+
+type indexGroup struct {
+	Letter    string
 	Resources []resourceNav
 }
 
@@ -131,6 +143,9 @@ type formField struct {
 	Widget       string
 	Checked      bool
 	Options      []string
+	Nullable     bool
+	HasDefault   bool
+	Hint         string
 
 	Ref string
 

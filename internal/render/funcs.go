@@ -5,19 +5,56 @@ import (
 	"fmt"
 	"html/template"
 	"strings"
+	"time"
 )
 
 func StaticFuncs() template.FuncMap {
 	return template.FuncMap{
-		"formatValue": FormatValue,
-		"cellValue":   CellValue,
-		"safeJSON":    SafeJSON,
-		"dict":        dict,
-		"hasPrefix":   strings.HasPrefix,
+		"formatValue":   FormatValue,
+		"cellValue":     CellValue,
+		"safeJSON":      SafeJSON,
+		"dict":          dict,
+		"hasPrefix":     strings.HasPrefix,
+		"datetimeLocal": DatetimeLocal,
+		"initial":       Initial,
+		"cellClass":     CellClass,
+	}
+}
+
+func CellClass(v any) string {
+	switch v.(type) {
+	case [16]byte, time.Time:
+		return "pg-cell-mono"
+	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, float32, float64:
+		return "pg-cell-num"
+	case map[string]any, []any:
+		return "pg-cell-json"
+	}
+	return ""
+}
+
+func Initial(s string) string {
+	for _, r := range strings.TrimSpace(s) {
+		return strings.ToUpper(string(r))
+	}
+	return "?"
+}
+
+func DatetimeLocal(v any) string {
+	switch x := v.(type) {
+	case time.Time:
+		return x.UTC().Format("2006-01-02T15:04:05")
+	case string:
+		return x
+	default:
+		return ""
 	}
 }
 
 func CellValue(v any) template.HTML {
+	if v == nil {
+		return `<span class="pg-null">NULL</span>`
+	}
 	if b, ok := v.(bool); ok {
 		if b {
 			return `<span class="pg-badge pg-badge-ok">Yes</span>`

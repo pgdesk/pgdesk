@@ -61,7 +61,7 @@ func (a *Admin) handleCreateForm(w http.ResponseWriter, r *http.Request) {
 	if !a.guard(w, r, CapCreate, res.name, "") {
 		return
 	}
-	display := visibleColumns(res.table.Columns(), res)
+	display := createFormColumns(res, visibleColumns(res.table.Columns(), res))
 	data := formView{
 		Base:     a.baseView(r, "New "+res.Label),
 		Resource: a.resourceMeta(res),
@@ -102,10 +102,8 @@ func (a *Admin) handleCreate(w http.ResponseWriter, r *http.Request) {
 	setVals := make([]any, 0, len(editable))
 	for _, c := range editable {
 
-		if !r.PostForm.Has(c.Name) && c.Category != introspect.CatBool {
-			if c.HasDefault {
-				continue
-			}
+		if c.Category != introspect.CatBool && c.HasDefault && r.PostFormValue(c.Name) == "" {
+			continue
 		}
 		setCols = append(setCols, c)
 		setVals = append(setVals, formValueForColumn(r, c))
@@ -182,7 +180,7 @@ func unavailableSelection(e *fkScopeError) mappedError {
 }
 
 func (a *Admin) renderCreateWithErrors(w http.ResponseWriter, r *http.Request, res *Resource, me mappedError) {
-	display := visibleColumns(res.table.Columns(), res)
+	display := createFormColumns(res, visibleColumns(res.table.Columns(), res))
 	fields := a.buildFormFields(r, res, display, map[string]any{}, me.fieldErrors)
 	overlaySubmitted(r, res, fields)
 	data := formView{
@@ -190,7 +188,7 @@ func (a *Admin) renderCreateWithErrors(w http.ResponseWriter, r *http.Request, r
 		Resource:  a.resourceMeta(res),
 		Action:    a.createAction(res),
 		IsCreate:  true,
-		FormError: me.formError,
+		FormError: withUnshownErrors(a, res, me, fields),
 		Fields:    fields,
 	}
 	a.renderPage(w, r, http.StatusUnprocessableEntity, "form", data)

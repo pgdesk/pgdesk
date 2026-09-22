@@ -1,34 +1,40 @@
 {{- define "detail" -}}
 {{ template "head" .Base }}
-<div class="pg-detail-header">
-  <h1>{{ .Resource.Label }}</h1>
-  <div class="pg-detail-actions">
-    {{- if .CanEdit }}
-    <a class="pg-btn" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}/edit">Edit</a>
-    {{- end }}
+<nav class="pg-crumbs" aria-label="Breadcrumb"><a href="{{ .Base.BasePath }}/">Home</a><span aria-hidden="true">/</span><a href="{{ .Base.BasePath }}/{{ .Resource.Name }}">{{ .Resource.LabelPlural }}</a><span aria-hidden="true">/</span><span aria-current="page">{{ .Resource.Label }}</span></nav>
+<header class="pg-page-header">
+  <div>
+    <h1>{{ .Resource.Label }}</h1>
+    <p class="pg-subtitle pg-mono">{{ .Key }}</p>
+  </div>
+  <div class="pg-page-actions pg-detail-actions">
     {{- if .CanDelete }}
     <form method="post" action="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}/delete"
           data-confirm="Delete this {{ .Resource.Label }}? This cannot be undone.">
       {{ csrfField }}
-      <button type="submit" class="pg-btn pg-btn-danger">Delete</button>
+      <button type="submit" class="pg-btn pg-btn-danger-ghost">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 6h18M8 6V4h8v2M6 6l1 14h10l1-14"/></svg><span>Delete</span></button>
     </form>
     {{- end }}
+    {{- if .CanEdit }}
+    <a class="pg-btn pg-btn-primary" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/{{ .Key }}/edit">
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 20h9M16.5 3.5a2.1 2.1 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg><span>Edit</span></a>
+    {{- end }}
   </div>
-</div>
+</header>
 
-<dl class="pg-detail">
-  {{- range .Fields }}
-  <div class="pg-field-row">
-    <dt>{{ .Label }}</dt>
-    <dd>
-      {{- if .FKLink }}<a href="{{ .FKLink }}">{{ .FKLabel }}</a>
-      {{- else if .FKLabel }}{{ .FKLabel }}
-      {{- else }}{{ cellValue .Value }}{{ end }}
-    </dd>
-  </div>
-  {{- end }}
-</dl>
-
-<p><a href="{{ .Base.BasePath }}/{{ .Resource.Name }}">&larr; Back to {{ .Resource.LabelPlural }}</a></p>
+<section class="pg-card">
+  <dl class="pg-detail">
+    {{- range .Fields }}
+    <div class="pg-field-row">
+      <dt>{{ .Label }}</dt>
+      <dd class="{{ if not .FKLabel }}{{ cellClass .Value }}{{ end }}">
+        {{- if .FKLink }}<a class="pg-fk-link" href="{{ .FKLink }}">{{ .FKLabel }}</a>
+        {{- else if .FKLabel }}{{ .FKLabel }}
+        {{- else }}{{ cellValue .Value }}{{ end }}
+      </dd>
+    </div>
+    {{- end }}
+  </dl>
+</section>
 {{ template "foot" .Base }}
 {{- end -}}

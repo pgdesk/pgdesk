@@ -1,12 +1,13 @@
 {{- define "error" -}}
 {{ template "head" .Base }}
 <div class="pg-error">
+  <div class="pg-error-icon" aria-hidden="true"><svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v5M12 16h.01"/></svg></div>
   <h1>{{ .Status }} {{ .StatusText }}</h1>
   <p>{{ .Message }}</p>
   {{- if .RequestID }}
-  <p class="pg-error-ref">Reference: <code>{{ .RequestID }}</code></p>
+  <p class="pg-error-ref">Reference <code>{{ .RequestID }}</code></p>
   {{- end }}
-  <p><a href="{{ .Base.BasePath }}/">Return to admin home</a></p>
+  <p><a class="pg-btn" href="{{ .Base.BasePath }}/">Back to all tables</a></p>
 </div>
 {{ template "foot" .Base }}
 {{- end -}}

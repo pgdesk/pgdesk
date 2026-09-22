@@ -3,6 +3,7 @@ package pgdesk
 import (
 	"fmt"
 	"net/http"
+	"slices"
 	"strconv"
 	"time"
 
@@ -73,8 +74,16 @@ func (a *Admin) buildFormFields(r *http.Request, res *Resource, cols []*introspe
 		if ff.Widget == string(WidgetCheckbox) {
 			ff.Checked = isTruthy(val)
 		}
+		ff.Nullable = c.Nullable
+		ff.HasDefault = c.HasDefault
+		ff.Hint = fieldHint(c)
 		if c.IsEnum() {
 			ff.Options = c.EnumLabels
+		} else if len(c.Choices) > 0 {
+			ff.Options = c.Choices
+			if fc == nil || fc.widget == WidgetAuto {
+				ff.Widget = string(WidgetSelect)
+			}
 		}
 
 		if ref, ok := a.resolveFKRef(r, res, c.Name); ok {
@@ -128,12 +137,44 @@ func formValueForColumn(r *http.Request, c *introspect.Column) any {
 	}
 	raw := r.PostFormValue(c.Name)
 	if raw == "" {
-		if c.Category == introspect.CatText {
+		if c.Category == introspect.CatText && len(c.Choices) == 0 {
 			return ""
 		}
 		return nil
 	}
+	if c.Category == introspect.CatTimestamp {
+		for _, layout := range []string{"2006-01-02T15:04:05", "2006-01-02T15:04"} {
+			if t, err := time.ParseInLocation(layout, raw, time.UTC); err == nil {
+				return t
+			}
+		}
+	}
 	return raw
+}
+
+func fieldHint(c *introspect.Column) string {
+	switch {
+	case c.Category == introspect.CatBool:
+		return ""
+	case c.Category == introspect.CatTimestamp && c.HasDefault:
+		return "UTC · leave empty for the default"
+	case c.Category == introspect.CatTimestamp:
+		return "UTC"
+	case c.HasDefault && len(c.Choices) == 0 && !c.IsEnum():
+		return "Leave empty for the default"
+	}
+	return ""
+}
+
+func createFormColumns(res *Resource, cols []*introspect.Column) []*introspect.Column {
+	out := make([]*introspect.Column, 0, len(cols))
+	for _, c := range cols {
+		if (c.HasDefault || c.IsIdentityAlways || c.IsGenerated) && slices.Contains(res.keyCols, c) {
+			continue
+		}
+		out = append(out, c)
+	}
+	return out
 }
 
 func scanOneRow(rows pgx.Rows, cols []*introspect.Column) (map[string]any, error) {

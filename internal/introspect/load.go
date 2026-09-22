@@ -39,6 +39,9 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 	if err := loadPrimaryKeys(ctx, tx, schemas, rels); err != nil {
 		return nil, err
 	}
+	if err := loadCheckChoices(ctx, tx, schemas, rels); err != nil {
+		return nil, err
+	}
 	if err := loadForeignKeys(ctx, tx, schemas, rels); err != nil {
 		return nil, err
 	}

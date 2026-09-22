@@ -42,7 +42,7 @@ func newResource(name string, t *introspect.Table, defaultPageSize int) *Resourc
 	r := &Resource{
 		name:           name,
 		table:          t,
-		Label:          humanize(name),
+		Label:          singular(humanize(name)),
 		LabelPlural:    humanize(name),
 		pageSize:       defaultPageSize,
 		keyCols:        t.PrimaryKey,
@@ -280,13 +280,39 @@ func (r *Resource) updatableColumns() []*introspect.Column {
 	return out
 }
 
+var acronyms = map[string]string{
+	"id": "ID", "ids": "IDs", "api": "API", "url": "URL", "urls": "URLs", "uuid": "UUID",
+	"ip": "IP", "oauth": "OAuth", "json": "JSON", "sms": "SMS", "http": "HTTP", "sso": "SSO", "otp": "OTP",
+}
+
 func humanize(s string) string {
 	parts := strings.Split(s, "_")
 	for i, p := range parts {
 		if p == "" {
 			continue
 		}
+		if a, ok := acronyms[strings.ToLower(p)]; ok {
+			parts[i] = a
+			continue
+		}
 		parts[i] = strings.ToUpper(p[:1]) + p[1:]
 	}
 	return strings.Join(parts, " ")
+}
+
+func singular(label string) string {
+	head, word := "", label
+	if i := strings.LastIndex(label, " "); i >= 0 {
+		head, word = label[:i+1], label[i+1:]
+	}
+	lower := strings.ToLower(word)
+	switch {
+	case strings.HasSuffix(lower, "ies") && len(word) > 3:
+		word = word[:len(word)-3] + "y"
+	case strings.HasSuffix(lower, "sses"), strings.HasSuffix(lower, "shes"), strings.HasSuffix(lower, "ches"), strings.HasSuffix(lower, "xes"):
+		word = word[:len(word)-2]
+	case strings.HasSuffix(lower, "s") && !strings.HasSuffix(lower, "ss") && !strings.HasSuffix(lower, "us") && !strings.HasSuffix(lower, "is"):
+		word = word[:len(word)-1]
+	}
+	return head + word
 }

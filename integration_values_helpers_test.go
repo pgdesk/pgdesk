@@ -13,6 +13,8 @@ func formValue(t *testing.T, body, name string) string {
 	t.Helper()
 	pats := []string{
 		fmt.Sprintf(`name="%s" type="text" value="([^"]*)"`, regexp.QuoteMeta(name)),
+		fmt.Sprintf(`type="hidden" name="%s" value="([^"]*)"`, regexp.QuoteMeta(name)),
+		fmt.Sprintf(`(?s)<textarea[^>]*name="%s"[^>]*>(.*?)</textarea>`, regexp.QuoteMeta(name)),
 		fmt.Sprintf(`name="%s"[^>]*class="pg-json">([^<]*)<`, regexp.QuoteMeta(name)),
 		fmt.Sprintf(`name="%s">([^<]*)<`, regexp.QuoteMeta(name)),
 	}
@@ -29,9 +31,6 @@ func formRow(t *testing.T, body, name string) string {
 	t.Helper()
 	marker := fmt.Sprintf(`id="f_%s"`, name)
 	for _, row := range strings.Split(body, `<div class="pg-form-row`)[1:] {
-		if end := strings.Index(row, "</div>"); end >= 0 {
-			row = row[:end]
-		}
 		if strings.Contains(row, marker) {
 			return row
 		}
