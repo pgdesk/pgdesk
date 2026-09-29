@@ -18,12 +18,13 @@ import (
 
 const uiSchema = `
 DROP TABLE IF EXISTS it_ui_child, it_ui_parent, it_ui_zeta, it_ui_alpha;
+-- Not gen_random_uuid(): it is built in only from PostgreSQL 13.
 CREATE TABLE it_ui_parent (
-    id   uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id   uuid PRIMARY KEY DEFAULT md5(random()::text)::uuid,
     name text NOT NULL
 );
 CREATE TABLE it_ui_child (
-    id        uuid PRIMARY KEY DEFAULT gen_random_uuid(),
+    id        uuid PRIMARY KEY DEFAULT md5(random()::text)::uuid,
     parent_id uuid REFERENCES it_ui_parent(id),
     scope     text NOT NULL DEFAULT 'all' CHECK (scope IN ('all', 'assigned')),
     kind      varchar(10) CHECK (kind IN ('a', 'b')),
