@@ -32,8 +32,9 @@ jobs:
       - name: go vet
         run: go vet ./...
       - name: staticcheck
+        # staticcheck needs a newer Go than ours to build; setup-go sets GOTOOLCHAIN=local.
         run: |
-          go install honnef.co/go/tools/cmd/staticcheck@latest
+          GOTOOLCHAIN=auto go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck ./...
 
   unit-race:
