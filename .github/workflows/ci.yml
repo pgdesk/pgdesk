@@ -49,15 +49,21 @@ jobs:
         run: go test -race -covermode=atomic -coverprofile=coverage.txt ./...
 
   fuzz-smoke:
-    name: Fuzz smoke (D3 resolver)
+    name: Fuzz column resolver
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v7
       - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
-      - name: fuzz identifier resolver briefly
-        run: go test -run=- -fuzz=FuzzResolveColumn -fuzztime=30s ./internal/query || true
+      - name: fuzz ResolveColumn for 30s
+        run: go test -run=- -fuzz=FuzzResolveColumn -fuzztime=30s ./internal/query
+      - name: upload the failing input
+        if: failure()
+        uses: actions/upload-artifact@v7
+        with:
+          name: fuzz-failure
+          path: internal/query/testdata/fuzz/
 
   integration:
     name: Integration (PostgreSQL ${{ matrix.postgres }})
