@@ -39,6 +39,7 @@ func ExcludeTables(names ...string) AutoRegisterOption {
 }
 
 // IncludeViews auto-registers the named views, which are skipped by default.
+// Views have no primary key, so they get no detail, create or edit pages.
 func IncludeViews(names ...string) AutoRegisterOption {
 	return func(ar *autoRegisterConfig) {
 		for _, n := range names {
@@ -67,7 +68,7 @@ func (a *Admin) autoRegister(cat *introspect.Catalog, add func(string, *Resource
 		if tbl.IsView && !ar.includeViews[name] {
 			continue
 		}
-		if !tbl.HasKey() {
+		if !tbl.HasKey() && !tbl.IsView {
 			continue
 		}
 		if !isURLSafe(name) {
