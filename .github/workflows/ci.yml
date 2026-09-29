@@ -59,11 +59,15 @@ jobs:
         run: go test -run=- -fuzz=FuzzResolveColumn -fuzztime=30s ./internal/query || true
 
   integration:
-    name: Integration (real PostgreSQL)
+    name: Integration (PostgreSQL ${{ matrix.postgres }})
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        postgres: ["12", "14", "16", "18"]
     services:
       postgres:
-        image: postgres:16
+        image: postgres:${{ matrix.postgres }}
         env:
           POSTGRES_PASSWORD: pgdesk
           POSTGRES_DB: pgdesk_test

@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://pkg.go.dev/github.com/pgdesk/pgdesk"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/pgdesk/pgdesk.svg"></a>
+  <a href="https://github.com/pgdesk/pgdesk/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/pgdesk/pgdesk/actions/workflows/ci.yml/badge.svg?branch=main"></a>
   <a href="https://github.com/pgdesk/pgdesk/actions/workflows/govulncheck.yml"><img alt="govulncheck" src="https://github.com/pgdesk/pgdesk/actions/workflows/govulncheck.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
@@ -101,7 +102,7 @@ pgdesk is built for internal tools used by trusted operators. Put it behind your
 
 ## Requirements
 
-Go 1.25+ and PostgreSQL 12+.
+Go 1.25+ and PostgreSQL 12+. CI runs the integration tests against PostgreSQL 12, 14, 16 and 18.
 
 ```sh
 go get github.com/pgdesk/pgdesk@latest
