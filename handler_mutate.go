@@ -238,13 +238,11 @@ func (a *Admin) handleDelete(w http.ResponseWriter, r *http.Request) {
 			a.renderError(w, r, http.StatusNotFound, "Record not found.")
 			return
 		}
-		me := mapPgError(delErr, res.constraintMsgs, res.table.UniqueColumns)
-		if me.empty() {
-			a.dbError(w, r, "delete", delErr)
+		if isForeignKeyViolation(delErr) {
+			a.renderError(w, r, http.StatusConflict, "This record cannot be deleted because other records depend on it.")
 			return
 		}
-
-		a.renderError(w, r, http.StatusConflict, "This record cannot be deleted because other records depend on it.")
+		a.dbError(w, r, "delete", delErr)
 		return
 	}
 	a.setFlash(w, "info", res.Label+" deleted.")

@@ -3,6 +3,12 @@
 pgdesk follows [semantic versioning](https://semver.org). Until v1, minor
 versions may break the API.
 
+## Unreleased
+
+- A failed delete no longer always says "other records depend on it". Only a
+  foreign-key violation does; any other failure, such as an audit logger
+  error, shows a generic error.
+
 ## v0.2.0 (2026-09-29)
 
 - **Breaking:** CSV export needs the new `CapExport` capability as well as

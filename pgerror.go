@@ -62,6 +62,11 @@ func mapPgError(err error, constraintMsgs map[string]string, uniqueCols uniqueLo
 	}
 }
 
+func isForeignKeyViolation(err error) bool {
+	var pg *pgconn.PgError
+	return errors.As(err, &pg) && pg.Code == "23503"
+}
+
 func fieldOrForm(column, fieldMsg, formMsg string) mappedError {
 	if column != "" {
 		return mappedError{fieldErrors: map[string]string{column: fieldMsg}}
