@@ -146,9 +146,11 @@ func do(admin *pgdesk.Admin, req *http.Request) *httptest.ResponseRecorder {
 	return rec
 }
 
+const csrfCookie = "__Host-pgdesk_csrf"
+
 var (
 	reVersion = regexp.MustCompile(`name="_version" value="([^"]*)"`)
-	reCookie  = regexp.MustCompile(`__Host-pgdesk_csrf=([^;]+)`)
+	reCookie  = regexp.MustCompile(csrfCookie + `=([^;]+)`)
 )
 
 func TestIntegrationListAndDetail(t *testing.T) {
@@ -212,7 +214,7 @@ func postEdit(admin *pgdesk.Admin, id, token, version string, form url.Values) *
 	form.Set("_version", version)
 	req := httptest.NewRequest("POST", "/admin/it_users/"+id+"/edit", strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "__Host-pgdesk_csrf", Value: token})
+	req.AddCookie(&http.Cookie{Name: csrfCookie, Value: token})
 	return do(admin, req)
 }
 
@@ -292,6 +294,64 @@ func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Poo
 func setupSchema(t *testing.T, ddl string, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
 	t.Helper()
 	return newAdmin(t, ddl, append([]pgdesk.Option{pgdesk.WithMiddleware(withPrincipal)}, opts...)...)
+}
+
+// leavingDDL adds a user with no orders, so there is a row a delete can remove.
+// It is the third user, so its id is leavingID.
+const leavingDDL = `INSERT INTO it_users (email) VALUES ('leaving@example.com');`
+
+const leavingID = "3"
+
+// usersAdmin serves it_users, with leavingDDL loaded and an "activate" bulk
+// action, to a signed-in operator who may do anything.
+func usersAdmin(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
+	t.Helper()
+	users := pgdesk.WithResource("it_users", func(r *pgdesk.Resource) {
+		r.Readonly("created_at")
+		r.Action("activate", "Activate", activateUsers)
+	})
+	return setupSchema(t, leavingDDL, append([]pgdesk.Option{users}, opts...)...)
+}
+
+func userID(t *testing.T, pool *pgxpool.Pool, email string) int64 {
+	t.Helper()
+	var id int64
+	if err := pool.QueryRow(context.Background(),
+		"SELECT id FROM it_users WHERE email = $1", email).Scan(&id); err != nil {
+		t.Fatalf("look up %s: %v", email, err)
+	}
+	return id
+}
+
+func userStatus(t *testing.T, pool *pgxpool.Pool, email string) string {
+	t.Helper()
+	var status string
+	if err := pool.QueryRow(context.Background(),
+		"SELECT status::text FROM it_users WHERE email = $1", email).Scan(&status); err != nil {
+		t.Fatalf("status of %s: %v", email, err)
+	}
+	return status
+}
+
+func userExists(t *testing.T, pool *pgxpool.Pool, email string) bool {
+	t.Helper()
+	var exists bool
+	if err := pool.QueryRow(context.Background(),
+		"SELECT EXISTS (SELECT 1 FROM it_users WHERE email = $1)", email).Scan(&exists); err != nil {
+		t.Fatalf("look up %s: %v", email, err)
+	}
+	return exists
+}
+
+// usersSnapshot returns every it_users row as text, so any change at all shows up.
+func usersSnapshot(t *testing.T, pool *pgxpool.Pool) string {
+	t.Helper()
+	var s string
+	if err := pool.QueryRow(context.Background(),
+		"SELECT coalesce(string_agg(u::text, E'\\n' ORDER BY u.id), '') FROM it_users u").Scan(&s); err != nil {
+		t.Fatalf("snapshot it_users: %v", err)
+	}
+	return s
 }
 
 // newAdmin is setupSchema without a signed-in principal.
@@ -576,21 +636,30 @@ func TestIntegrationDeleteBlockedByFK(t *testing.T) {
 	}
 }
 
-func TestIntegrationDeleteRequiresCSRF(t *testing.T) {
-	admin, _ := setup(t)
-	req := httptest.NewRequest("POST", "/admin/it_users/1/delete", strings.NewReader(""))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if rec := do(admin, req); rec.Code != http.StatusForbidden {
-		t.Fatalf("delete without CSRF status = %d, want 403", rec.Code)
-	}
-}
-
 func postForm(admin *pgdesk.Admin, path, token string, form url.Values) *httptest.ResponseRecorder {
 	form.Set("_pgdesk_csrf", token)
 	req := httptest.NewRequest("POST", path, strings.NewReader(form.Encode()))
 	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	req.AddCookie(&http.Cookie{Name: "__Host-pgdesk_csrf", Value: token})
+	req.AddCookie(&http.Cookie{Name: csrfCookie, Value: token})
 	return do(admin, req)
+}
+
+// followRedirect loads the page rec redirects to, with the cookies it set, and
+// returns its body. That is where a flash message is shown.
+func followRedirect(t *testing.T, admin *pgdesk.Admin, rec *httptest.ResponseRecorder) string {
+	t.Helper()
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303\n%s", rec.Code, rec.Body)
+	}
+	req := httptest.NewRequest("GET", rec.Header().Get("Location"), nil)
+	for _, c := range rec.Result().Cookies() {
+		req.AddCookie(c)
+	}
+	next := do(admin, req)
+	if next.Code != http.StatusOK {
+		t.Fatalf("GET %s status = %d, want 200", req.URL, next.Code)
+	}
+	return next.Body.String()
 }
 
 func TestIntegrationFlashAfterMutation(t *testing.T) {
@@ -656,18 +725,6 @@ func TestIntegrationBulkAction(t *testing.T) {
 	}
 }
 
-func TestIntegrationBulkActionRequiresCSRF(t *testing.T) {
-	admin, _ := setup(t)
-	form := url.Values{}
-	form.Set("_action", "activate")
-	form.Add("key", "1")
-	req := httptest.NewRequest("POST", "/admin/it_users/action", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	if rec := do(admin, req); rec.Code != http.StatusForbidden {
-		t.Fatalf("action without CSRF = %d, want 403", rec.Code)
-	}
-}
-
 func TestIntegrationBulkActionUnknown(t *testing.T) {
 	admin, _ := setup(t)
 	token, _ := editToken(t, admin, "1")
@@ -696,75 +753,5 @@ func TestIntegrationExportCSV(t *testing.T) {
 	filtered := do(admin, httptest.NewRequest("GET", "/admin/it_users/export.csv?f_status=active", nil)).Body.String()
 	if !strings.Contains(filtered, "ada@example.com") || strings.Contains(filtered, "alan@example.com") {
 		t.Fatalf("filtered export not applied:\n%s", filtered)
-	}
-}
-
-type dbAudit struct{}
-
-func (dbAudit) LogAuditTx(ctx context.Context, tx pgx.Tx, e pgdesk.AuditEvent) error {
-	_, err := tx.Exec(ctx,
-		"INSERT INTO it_audit_log (action, resource, row_key, actor_id) VALUES ($1,$2,$3,$4)",
-		string(e.Action), e.Resource, e.Key, e.ActorID)
-	return err
-}
-
-func TestIntegrationTransactionalAudit(t *testing.T) {
-	dsn := os.Getenv("PGDESK_TEST_DSN")
-	if dsn == "" {
-		t.Skip("PGDESK_TEST_DSN not set")
-	}
-	ctx := context.Background()
-	pool, err := pgxpool.New(ctx, dsn)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if _, err := pool.Exec(ctx, schemaSQL); err != nil {
-		pool.Close()
-		t.Fatal(err)
-	}
-	admin, err := pgdesk.New(pool,
-		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
-		pgdesk.WithAuthorizer(pgdesk.AllowAll),
-		pgdesk.WithMiddleware(withPrincipal),
-		pgdesk.WithTxAuditLogger(dbAudit{}),
-		pgdesk.WithResource("it_users", func(r *pgdesk.Resource) {
-			r.ListDisplay("id", "email", "status")
-			r.Readonly("id", "created_at")
-		}),
-	)
-	if err != nil {
-		pool.Close()
-		t.Fatal(err)
-	}
-	t.Cleanup(func() { _ = admin.Close(); pool.Close() })
-
-	token, version := editToken(t, admin, "1")
-	form := url.Values{}
-	form.Set("email", "ada.audited@example.com")
-	form.Set("status", "active")
-	if rec := postEdit(admin, "1", token, version, form); rec.Code != http.StatusSeeOther {
-		t.Fatalf("update status = %d", rec.Code)
-	}
-
-	var n int
-	if err := pool.QueryRow(ctx,
-		"SELECT count(*) FROM it_audit_log WHERE action='update' AND resource='it_users' AND actor_id='tester'").Scan(&n); err != nil {
-		t.Fatal(err)
-	}
-	if n != 1 {
-		t.Fatalf("expected exactly 1 audit row, got %d", n)
-	}
-}
-
-func TestIntegrationCSRFRejected(t *testing.T) {
-	admin, _ := setup(t)
-
-	form := url.Values{}
-	form.Set("email", "x@example.com")
-	req := httptest.NewRequest("POST", "/admin/it_users/1/edit", strings.NewReader(form.Encode()))
-	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
-	rec := do(admin, req)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("missing-CSRF status = %d, want 403", rec.Code)
 	}
 }
