@@ -22,6 +22,8 @@ import (
 )
 
 const schemaSQL = `
+DROP VIEW IF EXISTS it_draft_docs;
+DROP TABLE IF EXISTS it_docs;
 DROP TABLE IF EXISTS it_orders;
 DROP TABLE IF EXISTS it_users;
 DROP TABLE IF EXISTS it_audit;
@@ -182,9 +184,15 @@ func TestIntegrationKeyDecodeFailsClosed(t *testing.T) {
 	}
 }
 
-func editToken(t *testing.T, admin *pgdesk.Admin, id string) (string, string) {
+func editToken(t *testing.T, admin *pgdesk.Admin, id string) (token, version string) {
 	t.Helper()
-	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users/"+id+"/edit", nil))
+	return formTokens(t, admin, "/admin/it_users/"+id+"/edit")
+}
+
+// formTokens loads the edit form at path and returns its CSRF token and row version.
+func formTokens(t *testing.T, admin *pgdesk.Admin, path string) (token, version string) {
+	t.Helper()
+	rec := do(admin, httptest.NewRequest("GET", path, nil))
 	if rec.Code != 200 {
 		t.Fatalf("edit form status = %d\n%s", rec.Code, rec.Body.String())
 	}
@@ -277,6 +285,18 @@ func TestIntegrationDuplicateKeyMapped(t *testing.T) {
 
 func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
 	t.Helper()
+	return setupSchema(t, "", opts...)
+}
+
+// setupSchema loads the shared schema, then ddl, then builds a signed-in admin with opts.
+func setupSchema(t *testing.T, ddl string, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
+	t.Helper()
+	return newAdmin(t, ddl, append([]pgdesk.Option{pgdesk.WithMiddleware(withPrincipal)}, opts...)...)
+}
+
+// newAdmin is setupSchema without a signed-in principal.
+func newAdmin(t *testing.T, ddl string, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Pool) {
+	t.Helper()
 	dsn := os.Getenv("PGDESK_TEST_DSN")
 	if dsn == "" {
 		t.Skip("PGDESK_TEST_DSN not set; skipping integration tests")
@@ -287,7 +307,7 @@ func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Poo
 	if err != nil {
 		t.Fatalf("connect: %v", err)
 	}
-	if _, err := pool.Exec(ctx, schemaSQL); err != nil {
+	if _, err := pool.Exec(ctx, schemaSQL+ddl); err != nil {
 		pool.Close()
 		t.Fatalf("load schema: %v", err)
 	}
@@ -295,7 +315,6 @@ func setupWith(t *testing.T, opts ...pgdesk.Option) (*pgdesk.Admin, *pgxpool.Poo
 		pgdesk.WithBasePath("/admin"),
 		pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
 		pgdesk.WithAuthorizer(pgdesk.AllowAll),
-		pgdesk.WithMiddleware(withPrincipal),
 	}
 	admin, err := pgdesk.New(pool, append(base, opts...)...)
 	if err != nil {
