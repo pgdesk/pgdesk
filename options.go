@@ -58,7 +58,7 @@ func defaultConfig() *config {
 		loginURL:        "",
 		queryTimeout:    15 * time.Second,
 		exportTimeout:   5 * time.Minute,
-		logger:          slog.New(slog.DiscardHandler),
+		logger:          slog.New(discardHandler{}),
 		metrics:         nopMetrics{},
 		authorizer:      nil,
 		defaultPageSize: 50,

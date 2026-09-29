@@ -1,8 +1,10 @@
 package pgdesk
 
 import (
+	"context"
 	"crypto/rand"
 	"encoding/hex"
+	"log/slog"
 	"time"
 )
 
@@ -16,6 +18,15 @@ type Metrics interface {
 type nopMetrics struct{}
 
 func (nopMetrics) ObserveQuery(string, time.Duration, error) {}
+
+// discardHandler drops every record, like slog.DiscardHandler,
+// which needs Go 1.24.
+type discardHandler struct{}
+
+func (discardHandler) Enabled(context.Context, slog.Level) bool  { return false }
+func (discardHandler) Handle(context.Context, slog.Record) error { return nil }
+func (h discardHandler) WithAttrs([]slog.Attr) slog.Handler      { return h }
+func (h discardHandler) WithGroup(string) slog.Handler           { return h }
 
 func newRequestID() string {
 	var b [16]byte
