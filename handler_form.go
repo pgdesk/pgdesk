@@ -107,5 +107,5 @@ func valueString(v any) string {
 	if s, ok := v.(string); ok {
 		return s
 	}
-	return FormatVersion(v)
+	return formatVersion(v)
 }

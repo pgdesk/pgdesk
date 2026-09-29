@@ -7,14 +7,11 @@ import (
 )
 
 type Metrics interface {
-	ObserveRequest(route string, status int, dur time.Duration)
-
 	ObserveQuery(op string, dur time.Duration, err error)
 }
 
 type nopMetrics struct{}
 
-func (nopMetrics) ObserveRequest(string, int, time.Duration) {}
 func (nopMetrics) ObserveQuery(string, time.Duration, error) {}
 
 func newRequestID() string {

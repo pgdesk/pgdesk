@@ -246,7 +246,7 @@ func clientIP(r *http.Request) string {
 	return addr
 }
 
-func FormatVersion(v any) string {
+func formatVersion(v any) string {
 	if v == nil {
 		return ""
 	}

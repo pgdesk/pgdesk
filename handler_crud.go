@@ -434,7 +434,7 @@ func (a *Admin) fetchRow(r *http.Request, res *Resource, cols []*introspect.Colu
 
 	version := ""
 	if len(vals) > 0 {
-		version = FormatVersion(vals[0])
+		version = formatVersion(vals[0])
 	}
 	m := make(map[string]any, len(cols))
 	for i, c := range cols {
