@@ -7,6 +7,7 @@
 
 <p align="center">
   <a href="https://pkg.go.dev/github.com/pgdesk/pgdesk"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/pgdesk/pgdesk.svg"></a>
+  <a href="https://github.com/pgdesk/pgdesk/actions/workflows/govulncheck.yml"><img alt="govulncheck" src="https://github.com/pgdesk/pgdesk/actions/workflows/govulncheck.yml/badge.svg?branch=main"></a>
   <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
 </p>
 
