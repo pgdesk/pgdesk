@@ -37,6 +37,7 @@ func AllCapabilities() []Capability {
 	return []Capability{
 		CapAccessAdmin,
 		CapList,
+		CapExport,
 		CapView,
 		CapCreate,
 		CapUpdate,

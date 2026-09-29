@@ -5,6 +5,10 @@ versions may break the API.
 
 ## Unreleased
 
+- **Breaking:** CSV export needs the new `CapExport` capability as well as
+  `CapList`. Grant it where you want export to keep working, for example by
+  adding it to your `Roles`. The export button is hidden without it. Exported
+  rows are still limited by the `CapList` scope.
 - pgdesk's own code no longer needs anything newer than Go 1.22. The module
   still requires Go 1.25, because pgx v5.9.2 and golang.org/x/text v0.39.0
   (the first releases with fixes for GO-2026-5004 and GO-2026-5970) do.

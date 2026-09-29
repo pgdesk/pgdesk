@@ -7,8 +7,10 @@
     {{- if .Resource.Description }}<p class="pg-subtitle">{{ .Resource.Description }}</p>{{ end }}
   </div>
   <div class="pg-page-actions">
+    {{- if .ExportURL }}
     <a class="pg-btn" href="{{ .ExportURL }}">
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M5 21h14"/></svg><span>Export CSV</span></a>
+    {{- end }}
     {{- if .CanCreate }}
     <a class="pg-btn pg-btn-primary" href="{{ .Base.BasePath }}/{{ .Resource.Name }}/new" data-pg-create>
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14"/></svg><span>Add {{ .Resource.Label }}</span></a>

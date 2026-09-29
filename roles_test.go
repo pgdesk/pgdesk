@@ -104,7 +104,7 @@ func TestAllCapabilitiesIsFreshAndComplete(t *testing.T) {
 	}
 
 	for _, want := range []Capability{
-		CapAccessAdmin, CapList, CapView, CapCreate, CapUpdate, CapDelete, CapRunAction,
+		CapAccessAdmin, CapList, CapExport, CapView, CapCreate, CapUpdate, CapDelete, CapRunAction,
 	} {
 		if !slices.Contains(second, want) {
 			t.Errorf("AllCapabilities is missing %q", want)

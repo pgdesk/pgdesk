@@ -168,6 +168,9 @@ func (a *Admin) visibleActions(r *http.Request, res *Resource) []actionMeta {
 }
 
 func (a *Admin) exportURL(r *http.Request, res *Resource) string {
+	if !a.can(r, CapExport, res.name, "") {
+		return ""
+	}
 	q := cloneQuery(r.URL.Query())
 	q.Del("page")
 	base := a.cfg.basePath + "/" + res.name + "/export.csv"

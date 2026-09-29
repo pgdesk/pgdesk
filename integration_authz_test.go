@@ -318,3 +318,56 @@ func TestIntegrationNavShowsEverythingWhenPermitted(t *testing.T) {
 		}
 	}
 }
+
+func TestIntegrationExportRequiresExportCapability(t *testing.T) {
+	admin, _ := fkAdmin(t, pgdesk.WithAuthorizer(denyCap(pgdesk.CapExport, "fk_users")))
+
+	rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users/export.csv", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("export status = %d, want 403", rec.Code)
+	}
+	if strings.Contains(rec.Body.String(), "ada@example.com") {
+		t.Error("a refused export leaked row data")
+	}
+
+	list := do(admin, httptest.NewRequest("GET", "/admin/fk_users", nil))
+	if list.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200: CapList alone still lists", list.Code)
+	}
+	if strings.Contains(list.Body.String(), "export.csv") {
+		t.Error("list offers an export link to an operator without CapExport")
+	}
+}
+
+func TestIntegrationExportRequiresListCapability(t *testing.T) {
+	admin, _ := fkAdmin(t, pgdesk.WithAuthorizer(denyCap(pgdesk.CapList, "fk_users")))
+
+	rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users/export.csv", nil))
+	if rec.Code != http.StatusForbidden {
+		t.Errorf("export status = %d, want 403: CapExport alone must not export", rec.Code)
+	}
+}
+
+// A Scoper written before CapExport existed only knows CapList. Export must
+// still be limited by it, so it is scoped as a list, not as an export.
+func TestIntegrationExportIsScopedLikeTheList(t *testing.T) {
+	listOnly := pgdesk.ScopeOnly(func(ctx context.Context, attrs pgdesk.Attributes) ([]pgdesk.Constraint, error) {
+		if attrs.Resource == "fk_users" && attrs.Capability == pgdesk.CapList {
+			return []pgdesk.Constraint{pgdesk.Eq("tenant", "acme")}, nil
+		}
+		return nil, nil
+	})
+	admin, _ := fkAdmin(t, pgdesk.WithAuthorizer(pgdesk.DenyOverrides(pgdesk.AllowAll, listOnly)))
+
+	rec := do(admin, httptest.NewRequest("GET", "/admin/fk_users/export.csv", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("export status = %d, want 200", rec.Code)
+	}
+	body := rec.Body.String()
+	if !strings.Contains(body, "ada@example.com") {
+		t.Errorf("export is missing an in-scope row:\n%s", body)
+	}
+	if strings.Contains(body, "alan@example.com") {
+		t.Errorf("export includes a row outside the list scope:\n%s", body)
+	}
+}

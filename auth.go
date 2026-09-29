@@ -18,8 +18,11 @@ type Capability string
 const (
 	// CapAccessAdmin allows using the admin at all. It is checked on every request.
 	CapAccessAdmin Capability = "access_admin"
-	// CapList allows list pages and CSV export.
+	// CapList allows list pages.
 	CapList Capability = "list"
+	// CapExport allows CSV export. Export also needs CapList and returns the rows
+	// the CapList scope allows.
+	CapExport Capability = "export"
 	// CapView allows detail pages and showing rows as foreign-key labels.
 	CapView   Capability = "view"
 	CapCreate Capability = "create"

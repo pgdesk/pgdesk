@@ -16,7 +16,7 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusNotFound, "Unknown resource.")
 		return
 	}
-	if !a.guard(w, r, CapList, res.name, "") {
+	if !a.guard(w, r, CapList, res.name, "") || !a.guard(w, r, CapExport, res.name, "") {
 		return
 	}
 	scope, err := a.scopeFor(r, res, CapList, "")
