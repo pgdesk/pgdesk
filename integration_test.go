@@ -59,14 +59,14 @@ CREATE TABLE it_nopk (
 INSERT INTO it_users (email, full_name, status) VALUES
     ('ada@example.com',  'Ada Lovelace', 'active'),
     ('alan@example.com', 'Alan Turing',  'pending');
--- A table with a foreign key, for batched FK-label lookups (D4).
+-- A table with a foreign key, for batched FK-label lookups.
 CREATE TABLE it_orders (
     id      bigint  GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id bigint  NOT NULL REFERENCES it_users(id),
     total   numeric NOT NULL DEFAULT 0
 );
 INSERT INTO it_orders (user_id, total) VALUES (1, 10), (1, 20), (2, 5);
--- Durable audit sink for the transactional-audit test (O4).
+-- Durable audit sink for the transactional-audit test.
 DROP TABLE IF EXISTS it_audit_log;
 CREATE TABLE it_audit_log (
     id       bigint GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
