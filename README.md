@@ -1,98 +1,103 @@
-# pgdesk
+<h1 align="center">pgdesk</h1>
 
-**A production admin panel for your PostgreSQL database -- in one function call.**
+<p align="center">
+  <b>An admin panel for your PostgreSQL database, mounted inside your own Go server.</b><br>
+  Hand it a <code>pgxpool</code>. It reads your schema and serves lists, search, filters, forms and CSV export.
+</p>
 
-pgdesk reads your schema and gives you a complete, server-rendered admin UI --
-list, search, filter, sort, CRUD, bulk actions, CSV export, and a durable audit
-trail -- with Django-Admin-like leverage and Go's type safety. No ORM, no Node
-build, no framework lock-in. Point it at a `pgxpool`, declare what to expose,
-mount it on any `http.ServeMux`.
+<p align="center">
+  <a href="https://pkg.go.dev/github.com/pgdesk/pgdesk"><img alt="Go Reference" src="https://pkg.go.dev/badge/github.com/pgdesk/pgdesk.svg"></a>
+  <a href="LICENSE"><img alt="MIT license" src="https://img.shields.io/badge/license-MIT-blue.svg"></a>
+</p>
 
-> Usable in minutes, extensible in weeks.
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/orders-dark.png">
+  <img alt="pgdesk showing an orders table: customer names, status, totals and dates, with search, filters and CSV export" src=".github/screenshots/orders-light.png">
+</picture>
+
+## The whole integration
+
+That screen is [`examples/basic`](examples/basic). This is all the admin code in it:
 
 ```go
-admin, err := pgdesk.New(pool,
-    pgdesk.WithTitle("Operations Admin"),
-    pgdesk.WithSecretKey(secret),
-    pgdesk.WithAuthorizer(policy),
-    pgdesk.WithResource("users", func(r *pgdesk.Resource) {
-        r.ListDisplay("id", "email", "status", "created_at")
-        r.SearchFields("email", "full_name")
-        r.Filters("status", "created_at")
-        r.DefaultSort("-created_at")
+admin, err := pgdesk.New(pool, // your existing *pgxpool.Pool
+    pgdesk.WithTitle("Shop Admin"),
+    pgdesk.WithSecretKey(secret),           // signs CSRF tokens
+    pgdesk.WithMiddleware(yourAuth),        // who is signed in
+    pgdesk.WithAuthorizer(pgdesk.AllowAll), // what they may do
+    pgdesk.WithResource("orders", func(r *pgdesk.Resource) {
+        r.ListDisplay("id", "customer_id", "status", "total", "placed_at")
+        r.SearchFields("customer_id") // find orders by the customer's name
+        r.Filters("status", "placed_at")
+        r.FieldLabel("customer_id", "Customer")
+        r.DefaultSort("-placed_at")
+    }),
+    pgdesk.WithResource("customers", func(r *pgdesk.Resource) {
+        r.ListDisplay("id", "name", "email", "country")
+        r.SearchFields("name", "email")
+        r.Filters("country")
     }),
 )
-if err != nil {
-    log.Fatal(err) // misconfiguration is an error, never a panic
-}
 
-mux := http.NewServeMux()
-admin.Mount(mux) // that's it -- the admin is live at /admin/
+admin.Mount(mux) // live at /admin/
 ```
 
-## Why pgdesk
+The code only names columns. pgdesk works out the rest from the database:
 
-- **PostgreSQL-first, pgx-first.** It reads `pg_catalog` to understand your schema
-  and speaks pgx natively -- including capabilities you can't fake: a view that
-  isn't updatable gets no edit button, an identity column is dropped from the
-  insert form. Not database-agnostic, and better for it.
-- **ORM-agnostic.** pgdesk reads your database, not your models -- so it drops in
-  next to GORM, ent, sqlc, bun, or hand-written SQL with no adapter and no
-  lock-in. Share one `pgxpool` and your existing schema is administered as-is.
-  ([GORM example ->](examples/gorm))
-- **Standard library, all the way down.** `net/http`, `html/template`,
-  `context`. Mounts on a `ServeMux` or acts as a bare `http.Handler`. No Chi, Gin,
-  Echo, or Fiber. No mandatory Node build.
-- **One runtime dependency.** `github.com/jackc/pgx/v5` and the standard library.
-  That's the entire tree.
-- **Safe by default, fail-closed.** Nothing is exposed until you name it. Every
-  capability is denied until you authorize it. No request string ever reaches SQL
-  as anything but `$N`. No lost updates under concurrent edits. Mutations can't
-  commit without their audit record.
-- **Authorization that composes.** An `Authorizer` answers *may I?*; an optional
-  `Scoper` answers *which rows are mine?* -- pushed straight into the `WHERE`
-  clause, so row scoping is atomic and paginates correctly. Rules combine under a
-  deny-overrides algebra that can only ever narrow access, never widen it.
-- **No fake stubs.** Every shipped feature is exercised by a real-PostgreSQL
-  integration suite, run under `-race`.
+| In your schema | What you get |
+|---|---|
+| `customer_id REFERENCES customers` | Shows **Ada Lovelace** instead of `1`, links to her record, gives the form a searchable customer picker, and lets you search orders by customer name |
+| `CHECK (status IN ('pending', 'paid', ...))` | A dropdown in the form and in the filter |
+| `GENERATED ALWAYS AS IDENTITY`, `DEFAULT now()` | `id` is read-only; leave `placed_at` empty to get the default |
+| `timestamptz` | A date-range filter |
+| A view PostgreSQL can't update | No edit button |
 
-## What you get
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/search-dark.png">
+        <img alt="Searching orders for 'ada' returns Ada Lovelace's orders" src=".github/screenshots/search-light.png">
+      </picture>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/edit-dark.png">
+        <img alt="Editing an order: customer picker, status dropdown, read-only id" src=".github/screenshots/edit-light.png">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td align="center">Search follows the foreign key: "ada" finds her orders</td>
+    <td align="center">The form comes from the column types and constraints</td>
+  </tr>
+</table>
 
-CRUD with optimistic concurrency | typed filters, ILIKE search, sortable columns |
-foreign-key pickers: labels on lists and detail, bounded typeahead on forms |
-transactional bulk actions |
-streaming CSV export through the same authorizer | durable in-transaction audit |
-CSRF, nonce'd CSP, clickjacking & open-redirect defenses | readiness probe, hot
-catalog reload, metrics hook | flash messages, dark mode, keyboard shortcuts |
-opt-in auto-registration that logs its full exposed set at startup.
+## Try it
 
--> See the **[examples](examples)** for runnable apps: [basic](examples/basic),
-[session-auth](examples/session-auth), [gorm](examples/gorm) (pgdesk over a
-GORM-owned schema, sharing one pool), and [gin](examples/gin) (mounted behind a
-Gin router). Every exported symbol is documented at
-[pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk).
+```sh
+docker run -d -p 5432:5432 -e POSTGRES_PASSWORD=pgdesk postgres:16
+git clone https://github.com/pgdesk/pgdesk && cd pgdesk
+DATABASE_URL=postgres://postgres:pgdesk@localhost:5432/postgres go run ./examples/basic
+# open http://localhost:8080/admin/
+```
 
-## Security & scope
+## How it fits
 
-pgdesk is hardened for a **trusted-operator internal tool**. It defends against
-stored XSS from DB content, CSRF, clickjacking, open redirects, SQL injection,
-lost updates, resource exhaustion, and audit gaps.
+```
+browser ─▶ your Go server ─▶ your auth middleware ─▶ pgdesk (an http.Handler) ─▶ PostgreSQL
+                             "who is this?"           schema from pg_catalog,
+                                                      parameterized SQL only
+```
 
-It intentionally does **not** defend against a malicious authenticated operator
-(they have legitimate DB access by design), and it **delegates** TLS, network
-isolation, rate limiting, WAF, and session/auth to the host -- providing clean
-contracts (`Principal`, `Middleware`, `Authorizer`, `Metrics`) for each. Don't
-deploy it raw to the public internet expecting more than it claims.
+- **Keep your stack.** It works with any router ([Gin](examples/gin)) and any ORM ([GORM](examples/gorm)), because pgdesk reads the database, not your models. Its only dependency is `pgx`.
+- **Keep your auth.** pgdesk has no login page. Your middleware says *who* the user is ([example](examples/session-auth)). An `Authorizer` decides *what* they may do. An optional `Scoper` decides *which rows* they see, and pgdesk adds that to the SQL `WHERE`.
+- **Nothing is exposed until you name it.** It shows only the tables you list, or all of them if you opt into `WithAutoRegister`.
+
+It also includes bulk actions, an audit log written in the same transaction as each change, protection against lost updates from concurrent edits, CSRF and CSP, dark mode, and keyboard shortcuts.
+
+pgdesk is built for internal tools used by trusted operators. Put it behind your auth and your network, not on the open internet.
 
 ## Requirements
 
-- Go 1.25+ (floor set by pgx v5.10)
-- PostgreSQL 12+
-
-pgdesk follows [SemVer](https://semver.org/). **There is no tagged release yet**:
-the v1 feature set is complete and proven against real PostgreSQL, but the API is
-still pre-1.0 and may change.
-
-## License
-
-MIT -- see [LICENSE](LICENSE).
+Go 1.25+ and PostgreSQL 12+. There is no tagged release yet, and the API may change before v1. The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk). MIT licensed.
