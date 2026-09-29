@@ -100,4 +100,10 @@ pgdesk is built for internal tools used by trusted operators. Put it behind your
 
 ## Requirements
 
-Go 1.25+ and PostgreSQL 12+. There is no tagged release yet, and the API may change before v1. The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk). MIT licensed.
+Go 1.25+ and PostgreSQL 12+.
+
+```sh
+go get github.com/pgdesk/pgdesk@latest
+```
+
+The API may change before v1. The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk). MIT licensed.
