@@ -1,0 +1,41 @@
+name: Bug report
+description: pgdesk did something wrong.
+labels: [bug]
+body:
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What you did, what you expected, and what you got instead.
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: How to reproduce
+      description: >
+        The smallest schema and pgdesk options that show the problem. A CREATE TABLE
+        and the WithResource call are usually enough.
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or error output
+      description: Remove anything you wouldn't post publicly.
+      render: text
+  - type: input
+    id: pgdesk
+    attributes:
+      label: pgdesk version
+      placeholder: v0.1.1
+    validations:
+      required: true
+  - type: input
+    id: go
+    attributes:
+      label: Go version
+      placeholder: go1.26.8
+  - type: input
+    id: postgres
+    attributes:
+      label: PostgreSQL version
+      placeholder: "16.4"
