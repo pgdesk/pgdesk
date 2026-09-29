@@ -107,3 +107,5 @@ go get github.com/pgdesk/pgdesk@latest
 ```
 
 The API may change before v1. The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk). MIT licensed.
+
+Logo based on the Go gopher by Renée French, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
