@@ -2,6 +2,7 @@ package pgdesk
 
 import "net/http"
 
+// Middleware wraps an http.Handler.
 type Middleware func(http.Handler) http.Handler
 
 func chain(h http.Handler, mw ...Middleware) http.Handler {

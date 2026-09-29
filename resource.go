@@ -9,9 +9,12 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
+// Resource configures how one table is listed and edited.
 type Resource struct {
+	// Label is the singular name. LabelPlural is the plural. Both default from the table name.
 	Label       string
 	LabelPlural string
+	// Description is shown under the list title.
 	Description string
 
 	name  string
@@ -81,12 +84,15 @@ func (r *Resource) addErr(err error) {
 	r.err = errors.Join(r.err, err)
 }
 
+// ListDisplay sets the list columns, in order. Default: all columns.
 func (r *Resource) ListDisplay(cols ...string) {
 	if resolved, ok := r.resolve("ListDisplay", cols...); ok {
 		r.listDisplay = resolved
 	}
 }
 
+// SearchFields enables case-insensitive substring search over cols. A single-column
+// foreign key matches the referenced row's label.
 func (r *Resource) SearchFields(cols ...string) {
 	resolved, ok := r.resolve("SearchFields", cols...)
 	if !ok {
@@ -101,12 +107,14 @@ func (r *Resource) SearchFields(cols ...string) {
 	r.searchFields = resolved
 }
 
+// Filters sets the list filters, one per column.
 func (r *Resource) Filters(cols ...string) {
 	if resolved, ok := r.resolve("Filters", cols...); ok {
 		r.filters = resolved
 	}
 }
 
+// Readonly shows cols in forms without letting them be edited.
 func (r *Resource) Readonly(cols ...string) {
 	for _, n := range cols {
 		if _, ok := r.resolve("Readonly", n); ok {
@@ -115,6 +123,7 @@ func (r *Resource) Readonly(cols ...string) {
 	}
 }
 
+// Hidden removes cols from lists, detail pages, forms and CSV export.
 func (r *Resource) Hidden(cols ...string) {
 	for _, n := range cols {
 		if _, ok := r.resolve("Hidden", n); ok {
@@ -123,6 +132,7 @@ func (r *Resource) Hidden(cols ...string) {
 	}
 }
 
+// Required marks cols as required in forms.
 func (r *Resource) Required(cols ...string) {
 	for _, n := range cols {
 		if _, ok := r.resolve("Required", n); ok {
@@ -131,6 +141,7 @@ func (r *Resource) Required(cols ...string) {
 	}
 }
 
+// Redact leaves cols out of AuditEvent.Before and AuditEvent.After.
 func (r *Resource) Redact(cols ...string) {
 	for _, n := range cols {
 		if _, ok := r.resolve("Redact", n); ok {
@@ -139,18 +150,21 @@ func (r *Resource) Redact(cols ...string) {
 	}
 }
 
+// FieldLabel sets the label shown for col.
 func (r *Resource) FieldLabel(col, label string) {
 	if _, ok := r.resolve("FieldLabel", col); ok {
 		r.fieldFor(col).label = label
 	}
 }
 
+// Widget sets the form input for col.
 func (r *Resource) Widget(col string, w Widget) {
 	if _, ok := r.resolve("Widget", col); ok {
 		r.fieldFor(col).widget = w
 	}
 }
 
+// DefaultSort sets the initial list sort column. Prefix it with - for descending.
 func (r *Resource) DefaultSort(spec string) {
 	desc := false
 	name := spec
@@ -164,38 +178,47 @@ func (r *Resource) DefaultSort(spec string) {
 	}
 }
 
+// PageSize sets the default rows per list page. Default 50.
 func (r *Resource) PageSize(n int) {
 	if n > 0 {
 		r.pageSize = n
 	}
 }
 
+// Key sets the columns that identify a row. Default: the primary key.
 func (r *Resource) Key(cols ...string) {
 	if resolved, ok := r.resolve("Key", cols...); ok {
 		r.keyCols = resolved
 	}
 }
 
+// VersionColumn sets the column that detects concurrent edits. Default: the row's xmin, where it exists.
 func (r *Resource) VersionColumn(col string) {
 	if resolved, ok := r.resolve("VersionColumn", col); ok {
 		r.versionCol = resolved[0]
 	}
 }
 
+// LabelColumn sets the column that names this table's rows where other tables reference them.
+// Default: the first visible text column, else the key.
 func (r *Resource) LabelColumn(col string) {
 	if resolved, ok := r.resolve("LabelColumn", col); ok {
 		r.labelCol = resolved[0]
 	}
 }
 
+// ConstraintMessage sets the error shown when the named constraint rejects a change.
 func (r *Resource) ConstraintMessage(name, msg string) {
 	r.constraintMsgs[name] = msg
 }
 
+// Use adds middleware to this resource's routes.
 func (r *Resource) Use(mw ...Middleware) {
 	r.middleware = append(r.middleware, mw...)
 }
 
+// Action adds a bulk action that runs fn on the selected rows.
+// name must be URL-safe; label is shown on the button.
 func (r *Resource) Action(name, label string, fn ActionFunc, opts ...ActionOption) {
 	if !isURLSafe(name) {
 		r.addErr(fmt.Errorf("action name %q must be url-safe (letters, digits, - or _)", name))

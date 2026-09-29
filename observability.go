@@ -6,7 +6,10 @@ import (
 	"time"
 )
 
+// Metrics receives database timings.
 type Metrics interface {
+	// ObserveQuery is called after each read query, when Query returns and before rows are read.
+	// op is "list", "detail", "export", "fk_labels" or "fk_options".
 	ObserveQuery(op string, dur time.Duration, err error)
 }
 

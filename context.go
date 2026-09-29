@@ -17,10 +17,12 @@ const (
 	ctxKeyFlash
 )
 
+// WithPrincipal returns a copy of ctx that carries p.
 func WithPrincipal(ctx context.Context, p Principal) context.Context {
 	return context.WithValue(ctx, ctxKeyPrincipal, p)
 }
 
+// PrincipalFromContext returns the principal in ctx, or nil. A nil pointer counts as nil.
 func PrincipalFromContext(ctx context.Context) Principal {
 	p, _ := ctx.Value(ctxKeyPrincipal).(Principal)
 	if p == nil {
@@ -32,11 +34,13 @@ func PrincipalFromContext(ctx context.Context) Principal {
 	return p
 }
 
+// RequestIDFromContext returns the request ID: the X-Request-Id header if valid, otherwise a random one.
 func RequestIDFromContext(ctx context.Context) string {
 	id, _ := ctx.Value(ctxKeyRequestID).(string)
 	return id
 }
 
+// LoggerFromContext returns the request's logger, or slog.Default outside a request.
 func LoggerFromContext(ctx context.Context) *slog.Logger {
 	if l, ok := ctx.Value(ctxKeyLogger).(*slog.Logger); ok && l != nil {
 		return l

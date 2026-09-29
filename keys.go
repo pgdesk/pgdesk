@@ -6,13 +6,16 @@ import (
 	"github.com/pgdesk/pgdesk/internal/introspect"
 )
 
+// Keys are the keys of the rows selected for a bulk action.
 type Keys struct {
 	cols []*introspect.Column
 	vals [][]any
 }
 
+// Len returns the number of selected rows.
 func (k Keys) Len() int { return len(k.vals) }
 
+// Int64s returns the keys of a single-column integer key.
 func (k Keys) Int64s() ([]int64, error) {
 	col, err := k.single("Int64s", introspect.CatNumeric)
 	if err != nil {
@@ -29,6 +32,7 @@ func (k Keys) Int64s() ([]int64, error) {
 	return out, nil
 }
 
+// Strings returns the keys of a single-column text, uuid or enum key.
 func (k Keys) Strings() ([]string, error) {
 	col, err := k.single("Strings", introspect.CatText, introspect.CatUUID, introspect.CatEnum)
 	if err != nil {
@@ -45,8 +49,10 @@ func (k Keys) Strings() ([]string, error) {
 	return out, nil
 }
 
+// Raw returns each row's key values in key-column order.
 func (k Keys) Raw() [][]any { return k.vals }
 
+// Column returns the values of the named key column, one per row.
 func (k Keys) Column(name string) ([]any, error) {
 	idx := -1
 	for i, c := range k.cols {

@@ -19,6 +19,7 @@ import (
 	"github.com/pgdesk/pgdesk/internal/render"
 )
 
+// DB is the database access pgdesk needs. *pgxpool.Pool implements it.
 type DB interface {
 	BeginTx(ctx context.Context, txOptions pgx.TxOptions) (pgx.Tx, error)
 	Query(ctx context.Context, sql string, args ...any) (pgx.Rows, error)
@@ -27,6 +28,7 @@ type DB interface {
 	Ping(ctx context.Context) error
 }
 
+// Admin is the admin UI. Serve it with Mount or as an http.Handler.
 type Admin struct {
 	cfg      *config
 	db       DB
@@ -39,6 +41,8 @@ type Admin struct {
 	closed    atomic.Bool
 }
 
+// New reads the schema through pool and builds the configured resources.
+// Configuration mistakes are returned as errors.
 func New(pool *pgxpool.Pool, opts ...Option) (*Admin, error) {
 	if pool == nil {
 		return nil, ErrNoPool
@@ -46,6 +50,7 @@ func New(pool *pgxpool.Pool, opts ...Option) (*Admin, error) {
 	return newAdmin(pool, opts...)
 }
 
+// NewWithDB is like New but accepts any DB.
 func NewWithDB(db DB, opts ...Option) (*Admin, error) {
 	if db == nil {
 		return nil, ErrNoPool
@@ -193,6 +198,7 @@ func resolveTable(cat *introspect.Catalog, schemas []string, name string) (*intr
 	return found, nil
 }
 
+// Mount registers the admin on mux under the base path (default /admin).
 func (a *Admin) Mount(mux *http.ServeMux) {
 	h := a.buildHandler()
 
@@ -204,10 +210,12 @@ func (a *Admin) Mount(mux *http.ServeMux) {
 	})
 }
 
+// ServeHTTP serves the admin. Request paths must start with the base path.
 func (a *Admin) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	a.buildHandler().ServeHTTP(w, r)
 }
 
+// Reload re-reads the schema and rebuilds the resources. On error, the previous state is kept.
 func (a *Admin) Reload(ctx context.Context) error {
 	if a.closed.Load() {
 		return ErrClosed
@@ -257,6 +265,7 @@ func (a *Admin) warnOversizedPageSizes(st *adminState) {
 	}
 }
 
+// Healthy reports whether the schema is loaded and the database answers a ping.
 func (a *Admin) Healthy(ctx context.Context) error {
 	if a.closed.Load() {
 		return ErrClosed
@@ -272,6 +281,7 @@ func (a *Admin) Healthy(ctx context.Context) error {
 	return nil
 }
 
+// Close makes the admin answer 503 to every request. It does not close the database.
 func (a *Admin) Close() error {
 	a.closed.Store(true)
 	return nil

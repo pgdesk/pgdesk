@@ -8,6 +8,7 @@ import (
 	"time"
 )
 
+// Option configures New.
 type Option func(*config)
 
 type config struct {
@@ -98,14 +99,17 @@ func isSafeBasePath(p string) bool {
 	return true
 }
 
+// WithTitle sets the title shown in the header. Default "pgdesk".
 func WithTitle(title string) Option {
 	return func(c *config) { c.title = title }
 }
 
+// WithBasePath sets the URL path the admin is served under. Default "/admin".
 func WithBasePath(path string) Option {
 	return func(c *config) { c.basePath = normalizeBasePath(path) }
 }
 
+// WithSchemas sets the schemas tables are read from. Default "public".
 func WithSchemas(schemas ...string) Option {
 	return func(c *config) {
 		if len(schemas) > 0 {
@@ -116,12 +120,16 @@ func WithSchemas(schemas ...string) Option {
 	}
 }
 
+// WithResource exposes the named table or view, configured by configure (which may be nil).
+// A later call for the same name replaces an earlier one.
 func WithResource(name string, configure func(*Resource)) Option {
 	return func(c *config) {
 		c.resources = append(c.resources, resourceReg{name: name, fn: configure})
 	}
 }
 
+// WithSecretKey sets the key that signs CSRF tokens and flash messages.
+// Values signed with a retired key are still accepted, so keys can be rotated.
 func WithSecretKey(primary []byte, retired ...[]byte) Option {
 	return func(c *config) {
 		c.secretPrimary = append([]byte(nil), primary...)
@@ -132,6 +140,7 @@ func WithSecretKey(primary []byte, retired ...[]byte) Option {
 	}
 }
 
+// WithLogger sets the logger. By default nothing is logged.
 func WithLogger(l *slog.Logger) Option {
 	return func(c *config) {
 		if l != nil {
@@ -140,6 +149,7 @@ func WithLogger(l *slog.Logger) Option {
 	}
 }
 
+// WithQueryTimeout limits each request's database work. Default 15s.
 func WithQueryTimeout(d time.Duration) Option {
 	return func(c *config) {
 		if d > 0 {
@@ -150,6 +160,7 @@ func WithQueryTimeout(d time.Duration) Option {
 	}
 }
 
+// WithExportTimeout limits a CSV export. Default 5m; never less than the query timeout.
 func WithExportTimeout(d time.Duration) Option {
 	return func(c *config) {
 		if d > 0 {
@@ -160,30 +171,38 @@ func WithExportTimeout(d time.Duration) Option {
 	}
 }
 
+// WithMiddleware runs mw, in order, on every admin request before routing.
+// Use it to set the Principal.
 func WithMiddleware(mw ...Middleware) Option {
 	return func(c *config) { c.middleware = append(c.middleware, mw...) }
 }
 
+// WithLoginURL redirects unauthenticated GET requests to url instead of answering 401.
 func WithLoginURL(url string) Option {
 	return func(c *config) { c.loginURL = url }
 }
 
+// WithLogoutURL adds a sign-out button to the header that POSTs to url.
 func WithLogoutURL(url string) Option {
 	return func(c *config) { c.logoutURL = url }
 }
 
+// WithAuthorizer sets the Authorizer. If az also implements Scoper, its constraints filter rows.
 func WithAuthorizer(az Authorizer) Option {
 	return func(c *config) { c.authorizer = az }
 }
 
+// WithAuditLogger sets an AuditLogger.
 func WithAuditLogger(l AuditLogger) Option {
 	return func(c *config) { c.audit = l }
 }
 
+// WithTxAuditLogger sets a TxAuditLogger.
 func WithTxAuditLogger(l TxAuditLogger) Option {
 	return func(c *config) { c.txAudit = l }
 }
 
+// WithMetrics sets the Metrics receiver.
 func WithMetrics(m Metrics) Option {
 	return func(c *config) {
 		if m != nil {
@@ -192,6 +211,7 @@ func WithMetrics(m Metrics) Option {
 	}
 }
 
+// WithMaxBodyBytes limits the size of a form submission. Default 1 MiB.
 func WithMaxBodyBytes(n int64) Option {
 	return func(c *config) {
 		if n > 0 {
@@ -202,6 +222,7 @@ func WithMaxBodyBytes(n int64) Option {
 	}
 }
 
+// WithMaxPageSize caps the page_size a list request can ask for. Default 200.
 func WithMaxPageSize(n int) Option {
 	return func(c *config) {
 		if n > 0 {
@@ -212,6 +233,7 @@ func WithMaxPageSize(n int) Option {
 	}
 }
 
+// WithMaxExportRows caps the rows in a CSV export. Default 50000.
 func WithMaxExportRows(n int) Option {
 	return func(c *config) {
 		if n > 0 {
@@ -222,6 +244,7 @@ func WithMaxExportRows(n int) Option {
 	}
 }
 
+// WithMaxOptions caps the choices the foreign-key picker returns per search. Default 20.
 func WithMaxOptions(n int) Option {
 	return func(c *config) {
 		if n > 0 {
@@ -232,6 +255,7 @@ func WithMaxOptions(n int) Option {
 	}
 }
 
+// WithMaxBulk caps the rows one bulk action can select. Default 500.
 func WithMaxBulk(n int) Option {
 	return func(c *config) {
 		if n > 0 {
@@ -242,6 +266,7 @@ func WithMaxBulk(n int) Option {
 	}
 }
 
+// WithTemplateFS replaces built-in templates with same-named *.html files from fsys.
 func WithTemplateFS(fsys fs.FS) Option {
 	return func(c *config) { c.templateFS = fsys }
 }

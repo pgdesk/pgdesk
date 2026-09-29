@@ -1,7 +1,9 @@
 package pgdesk
 
+// Widget is the form input used for a column.
 type Widget string
 
+// Widgets for Resource.Widget. WidgetAuto chooses from the column type.
 const (
 	WidgetAuto     Widget = ""
 	WidgetText     Widget = "text"

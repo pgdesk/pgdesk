@@ -8,34 +8,44 @@ import (
 	"github.com/pgdesk/pgdesk/internal/query"
 )
 
+// Constraint is a row filter returned by a Scoper.
 type Constraint struct {
 	column string
 	op     query.Operator
 	values []any
 }
 
+// Eq matches rows where column equals value.
 func Eq(column string, value any) Constraint {
 	return Constraint{column: column, op: query.OpEq, values: []any{value}}
 }
 
+// Ne matches rows where column does not equal value.
 func Ne(column string, value any) Constraint {
 	return Constraint{column: column, op: query.OpNe, values: []any{value}}
 }
 
+// In matches rows where column equals one of values.
 func In(column string, values ...any) Constraint {
 	return Constraint{column: column, op: query.OpIn, values: values}
 }
 
+// Scoper limits the rows a principal can see and change. Its constraints are added to the
+// SQL WHERE clause.
 type Scoper interface {
 	Scope(ctx context.Context, attrs Attributes) ([]Constraint, error)
 }
 
+// ScopeFunc adapts a function to Scoper.
 type ScopeFunc func(ctx context.Context, attrs Attributes) ([]Constraint, error)
 
+// Scope calls f.
 func (f ScopeFunc) Scope(ctx context.Context, attrs Attributes) ([]Constraint, error) {
 	return f(ctx, attrs)
 }
 
+// ScopeOnly returns an Authorizer that abstains on every decision and limits rows with fn.
+// Combine it with DenyOverrides.
 func ScopeOnly(fn func(ctx context.Context, attrs Attributes) ([]Constraint, error)) Authorizer {
 	return scopeOnly{ScopeFunc(fn)}
 }

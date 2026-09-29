@@ -11,8 +11,11 @@ type autoRegisterConfig struct {
 	includeViews  map[string]bool
 }
 
+// AutoRegisterOption configures WithAutoRegister.
 type AutoRegisterOption func(*autoRegisterConfig)
 
+// WithAutoRegister exposes every table in the configured schemas that has a primary key
+// and a URL-safe name. Tables added with WithResource keep their configuration.
 func WithAutoRegister(opts ...AutoRegisterOption) Option {
 	return func(c *config) {
 		ar := &autoRegisterConfig{
@@ -26,6 +29,7 @@ func WithAutoRegister(opts ...AutoRegisterOption) Option {
 	}
 }
 
+// ExcludeTables keeps the named tables out of auto-registration.
 func ExcludeTables(names ...string) AutoRegisterOption {
 	return func(ar *autoRegisterConfig) {
 		for _, n := range names {
@@ -34,6 +38,7 @@ func ExcludeTables(names ...string) AutoRegisterOption {
 	}
 }
 
+// IncludeViews auto-registers the named views, which are skipped by default.
 func IncludeViews(names ...string) AutoRegisterOption {
 	return func(ar *autoRegisterConfig) {
 		for _, n := range names {
