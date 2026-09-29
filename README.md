@@ -92,7 +92,7 @@ browser ─▶ your Go server ─▶ your auth middleware ─▶ pgdesk (an http
 ```
 
 - **Keep your stack.** It works with any router ([Gin](examples/gin)) and any ORM ([GORM](examples/gorm)), because pgdesk reads the database, not your models. Its only dependency is `pgx`.
-- **Keep your auth.** pgdesk has no login page. Your middleware says *who* the user is ([example](examples/session-auth)). An `Authorizer` decides *what* they may do. An optional `Scoper` decides *which rows* they see, and pgdesk adds that to the SQL `WHERE`.
+- **Keep your auth.** pgdesk has no login page. Your middleware says *who* the user is ([example](examples/session-auth)). An `Authorizer` decides *what* they may do. An optional `Scoper` decides *which rows* they see, and pgdesk adds that to the SQL `WHERE` ([how scoping is enforced](docs/scoping.md)).
 - **Nothing is exposed until you name it.** It shows only the tables you list, or all of them if you opt into `WithAutoRegister`.
 
 It also includes bulk actions, an audit log written in the same transaction as each change, protection against lost updates from concurrent edits, CSRF and CSP, dark mode, and keyboard shortcuts.
