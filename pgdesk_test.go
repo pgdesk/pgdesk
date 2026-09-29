@@ -3,6 +3,7 @@ package pgdesk
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io/fs"
 	"net/http"
 	"net/http/httptest"
@@ -208,6 +209,29 @@ func TestMapPgError(t *testing.T) {
 
 	if me := mapPgError(errors.New("boom: schema secret"), nil, nil); me.formError == "" || strings.Contains(me.formError, "secret") {
 		t.Errorf("non-pg error should be generic: %+v", me)
+	}
+}
+
+func TestIsForeignKeyViolation(t *testing.T) {
+	fk := &pgconn.PgError{Code: "23503"}
+	tests := []struct {
+		name string
+		err  error
+		want bool
+	}{
+		{"foreign key violation", fk, true},
+		{"wrapped foreign key violation", fmt.Errorf("delete: %w", fk), true},
+		{"unique violation", &pgconn.PgError{Code: "23505"}, false},
+		{"trigger exception", &pgconn.PgError{Code: "P0001"}, false},
+		{"not a database error", errors.New("audit sink down"), false},
+		{"nil", nil, false},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			if got := isForeignKeyViolation(tt.err); got != tt.want {
+				t.Errorf("isForeignKeyViolation(%v) = %t, want %t", tt.err, got, tt.want)
+			}
+		})
 	}
 }
 
