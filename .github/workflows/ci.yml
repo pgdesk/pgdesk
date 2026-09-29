@@ -16,8 +16,8 @@ jobs:
     name: Build, vet, format, static analysis
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
           check-latest: true
@@ -40,8 +40,8 @@ jobs:
     name: Unit tests (race)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: go test -race
@@ -51,8 +51,8 @@ jobs:
     name: Fuzz smoke (D3 resolver)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: fuzz identifier resolver briefly
@@ -80,8 +80,8 @@ jobs:
     env:
       PGDESK_TEST_DSN: postgres://postgres:pgdesk@localhost:5432/pgdesk_test?sslmode=disable
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
         with:
           go-version: ${{ env.GO_VERSION }}
       - name: integration tests
