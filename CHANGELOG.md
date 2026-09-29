@@ -3,7 +3,7 @@
 pgdesk follows [semantic versioning](https://semver.org). Until v1, minor
 versions may break the API.
 
-## Unreleased
+## v0.2.0 (2026-09-29)
 
 - **Breaking:** CSV export needs the new `CapExport` capability as well as
   `CapList`. Grant it where you want export to keep working, for example by
@@ -12,6 +12,7 @@ versions may break the API.
 - pgdesk's own code no longer needs anything newer than Go 1.22. The module
   still requires Go 1.25, because pgx v5.9.2 and golang.org/x/text v0.39.0
   (the first releases with fixes for GO-2026-5004 and GO-2026-5970) do.
+- The integration tests now run against PostgreSQL 12, 14, 16 and 18 in CI.
 
 ## v0.1.1 (2026-09-29)
 
