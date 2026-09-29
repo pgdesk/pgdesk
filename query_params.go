@@ -34,10 +34,9 @@ func (a *Admin) parseListRequest(r *http.Request, res *Resource) (*listRequest, 
 	lr.pageSize = a.clampPageSize(parsePageSize(q.Get("page_size"), res.pageSize))
 
 	if term := strings.TrimSpace(q.Get("q")); term != "" {
-		cols := textColumns(res.searchFields)
-		if len(cols) > 0 {
+		if len(res.searchFields) > 0 {
 			lr.q = term
-			lr.search = &query.SearchSpec{Cols: cols, Term: "%" + escapeLike(term) + "%"}
+			lr.search = &query.SearchSpec{Cols: textColumns(res.searchFields), Term: "%" + escapeLike(term) + "%"}
 		}
 	}
 

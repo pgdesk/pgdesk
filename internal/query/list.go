@@ -14,7 +14,20 @@ type Filter struct {
 
 type SearchSpec struct {
 	Cols []*introspect.Column
+	Refs []RefSearch
 	Term string
+}
+
+type RefSearch struct {
+	Col   *introspect.Column
+	Table *introspect.Table
+	Key   *introspect.Column
+	Label *introspect.Column
+	Scope []Filter
+}
+
+func (s *SearchSpec) active() bool {
+	return s != nil && s.Term != ""
 }
 
 type ListParams struct {
@@ -42,7 +55,7 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 	for _, f := range p.Filters {
 		conds = append(conds, emitFilter(args, f))
 	}
-	if p.Search != nil && p.Search.Term != "" && len(p.Search.Cols) > 0 {
+	if p.Search.active() {
 		conds = append(conds, emitSearch(args, p.Search))
 	}
 	if len(conds) > 0 {
@@ -108,10 +121,28 @@ func emitFilter(args *Args, f Filter) string {
 }
 
 func emitSearch(args *Args, s *SearchSpec) string {
+	if len(s.Cols) == 0 && len(s.Refs) == 0 {
+		return "false"
+	}
 	ph := args.Add(s.Term)
-	parts := make([]string, len(s.Cols))
-	for i, c := range s.Cols {
-		parts[i] = Ident(c.Name) + " ILIKE " + ph
+	parts := make([]string, 0, len(s.Cols)+len(s.Refs))
+	for _, c := range s.Cols {
+		parts = append(parts, Ident(c.Name)+" ILIKE "+ph)
+	}
+	for _, ref := range s.Refs {
+		var b strings.Builder
+		b.WriteString(Ident(ref.Col.Name))
+		b.WriteString(" IN (SELECT ")
+		b.WriteString(Ident(ref.Key.Name))
+		b.WriteString(" FROM ")
+		b.WriteString(QualifyIdent(ref.Table.Schema, ref.Table.Name))
+		b.WriteString(" WHERE ")
+		b.WriteString(Ident(ref.Label.Name))
+		b.WriteString(" ILIKE ")
+		b.WriteString(ph)
+		writeScope(&b, args, ref.Scope)
+		b.WriteString(")")
+		parts = append(parts, b.String())
 	}
 	return "(" + strings.Join(parts, " OR ") + ")"
 }

@@ -88,9 +88,17 @@ func (r *Resource) ListDisplay(cols ...string) {
 }
 
 func (r *Resource) SearchFields(cols ...string) {
-	if resolved, ok := r.resolve("SearchFields", cols...); ok {
-		r.searchFields = resolved
+	resolved, ok := r.resolve("SearchFields", cols...)
+	if !ok {
+		return
 	}
+	for _, c := range resolved {
+		if !searchable(r, c) {
+			r.addErr(fmt.Errorf("%w: %q on table %q is %s", ErrUnsearchableColumn, c.Name, r.name, c.DataType))
+			return
+		}
+	}
+	r.searchFields = resolved
 }
 
 func (r *Resource) Filters(cols ...string) {

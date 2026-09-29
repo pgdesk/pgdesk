@@ -52,6 +52,11 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusBadRequest, "Invalid list parameters.")
 		return
 	}
+	search, err := a.withRefSearch(r, res, lr.search)
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
+		return
+	}
 
 	display := visibleColumns(res.listDisplay, res)
 
@@ -70,7 +75,7 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	sql, args, err := query.BuildList(res.table, query.ListParams{
 		Columns:  fetch,
 		Filters:  withScope(lr.filters, scope),
-		Search:   lr.search,
+		Search:   search,
 		Sort:     lr.sortCol,
 		SortDesc: lr.sortDesc,
 		Limit:    lr.pageSize + 1,
@@ -142,7 +147,7 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 	data := listView{
 		Base:            a.baseView(r, res.LabelPlural),
 		Resource:        a.resourceMeta(res),
-		SearchEnabled:   len(textColumns(res.searchFields)) > 0,
+		SearchEnabled:   a.searchEnabled(r, res),
 		Query:           lr.q,
 		Headers:         a.sortHeaders(r, res, display, lr),
 		Rows:            rowViews,

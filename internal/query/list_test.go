@@ -136,3 +136,81 @@ func TestParseScalarTypeAware(t *testing.T) {
 		t.Errorf("enum parse: %v %v", v, err)
 	}
 }
+
+func ordersTable() *introspect.Table {
+	cols := []*introspect.Column{
+		{Name: "id", Position: 1, DataType: "int8", Category: introspect.CatNumeric},
+		{Name: "user_id", Position: 2, DataType: "int8", Category: introspect.CatNumeric},
+		{Name: "note", Position: 3, DataType: "text", Category: introspect.CatText, Nullable: true},
+	}
+	return introspect.NewTable("public", "orders", false, true, "", cols, cols[:1], nil)
+}
+
+func TestBuildListSearchThroughForeignKey(t *testing.T) {
+	users, orders := testTable(), ordersTable()
+	sql, args, err := BuildList(orders, ListParams{
+		Columns: []*introspect.Column{col(orders, "id")},
+		Search: &SearchSpec{
+			Cols: []*introspect.Column{col(orders, "note")},
+			Refs: []RefSearch{{
+				Col:   col(orders, "user_id"),
+				Table: users,
+				Key:   col(users, "id"),
+				Label: col(users, "email"),
+				Scope: []Filter{{Col: col(users, "status"), Op: OpEq, Values: []any{"active"}}},
+			}},
+			Term: "%ada%",
+		},
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `WHERE ("note" ILIKE $1 OR "user_id" IN (SELECT "id" FROM "public"."users" WHERE "email" ILIKE $1 AND "status" = $2))`
+	if !strings.Contains(sql, want) {
+		t.Fatalf("unexpected WHERE:\n got: %s\nwant: %s", sql, want)
+	}
+	const term, scope, limit, offset = 1, 1, 1, 1
+	if len(args) != term+scope+limit+offset || args[0] != "%ada%" || args[1] != "active" {
+		t.Fatalf("args = %v, want the term once, then the scope value, limit, offset", args)
+	}
+}
+
+func TestBuildListSearchWithNoColumnsMatchesNothing(t *testing.T) {
+	orders := ordersTable()
+	sql, args, err := BuildList(orders, ListParams{
+		Columns: []*introspect.Column{col(orders, "id")},
+		Search:  &SearchSpec{Term: "%ada%"},
+		Limit:   10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(sql, "WHERE false") {
+		t.Fatalf("a search term with nothing to search must match no rows: %s", sql)
+	}
+	for _, a := range args {
+		if a == "%ada%" {
+			t.Fatalf("an unused term must not be bound: PostgreSQL rejects parameters it cannot type (args = %v)", args)
+		}
+	}
+}
+
+func TestBuildListSearchOnlyThroughForeignKey(t *testing.T) {
+	users, orders := testTable(), ordersTable()
+	sql, _, err := BuildList(orders, ListParams{
+		Columns: []*introspect.Column{col(orders, "id")},
+		Search: &SearchSpec{
+			Refs: []RefSearch{{Col: col(orders, "user_id"), Table: users, Key: col(users, "id"), Label: col(users, "email")}},
+			Term: "%ada%",
+		},
+		Limit: 10,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	want := `WHERE ("user_id" IN (SELECT "id" FROM "public"."users" WHERE "email" ILIKE $1))`
+	if !strings.Contains(sql, want) {
+		t.Fatalf("a search with only FK columns must still filter:\n got: %s\nwant: %s", sql, want)
+	}
+}

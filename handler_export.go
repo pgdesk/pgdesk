@@ -29,13 +29,18 @@ func (a *Admin) handleExport(w http.ResponseWriter, r *http.Request) {
 		a.renderError(w, r, http.StatusBadRequest, "Invalid list parameters.")
 		return
 	}
+	search, err := a.withRefSearch(r, res, lr.search)
+	if err != nil {
+		a.scopeDenied(w, r, res, err)
+		return
+	}
 
 	display := visibleColumns(res.listDisplay, res)
 
 	sql, args, err := query.BuildList(res.table, query.ListParams{
 		Columns:  display,
 		Filters:  withScope(lr.filters, scope),
-		Search:   lr.search,
+		Search:   search,
 		Sort:     lr.sortCol,
 		SortDesc: lr.sortDesc,
 		Limit:    a.cfg.maxExportRows + 1,

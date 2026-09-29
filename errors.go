@@ -9,6 +9,8 @@ var (
 
 	ErrUnknownColumn = errors.New("pgdesk: column does not exist on table")
 
+	ErrUnsearchableColumn = errors.New("pgdesk: search column must be text or a single-column foreign key")
+
 	ErrUnknownTable = errors.New("pgdesk: table not found in catalog")
 
 	ErrAmbiguousTable = errors.New("pgdesk: table name is ambiguous across the configured schemas")
