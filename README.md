@@ -83,7 +83,7 @@ browser ─▶ your Go server ─▶ your auth middleware ─▶ pgdesk (an http
 
 Concurrent edits can't silently overwrite each other, and with `WithTxAuditLogger` each change and its audit entry commit together or not at all.
 
-pgdesk is built for internal tools used by trusted operators. Put it behind your auth and your network, not on the open internet, and serve it over HTTPS: its cookies are `Secure`, so over plain `http://` every save fails. On a trusted network without TLS, pass `WithInsecureCookies()`.
+pgdesk is built for internal tools used by trusted operators. Put it behind your auth and your network, not on the open internet. Serve it over HTTPS. On a trusted network without TLS, pass `WithInsecureCookies()`.
 
 ## Requirements
 
@@ -93,6 +93,6 @@ Go 1.25+ and PostgreSQL 12+.
 go get github.com/pgdesk/pgdesk@latest
 ```
 
-The API may change before v1. MIT licensed.
+The API may change before v1. The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk). MIT licensed.
 
 Logo based on the Go gopher by Renée French, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
