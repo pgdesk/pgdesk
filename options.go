@@ -25,6 +25,8 @@ type config struct {
 	secretPrimary []byte
 	secretRetired [][]byte
 
+	insecureCookies bool
+
 	logger     *slog.Logger
 	metrics    Metrics
 	authorizer Authorizer
@@ -138,6 +140,16 @@ func WithSecretKey(primary []byte, retired ...[]byte) Option {
 			c.secretRetired = append(c.secretRetired, append([]byte(nil), k...))
 		}
 	}
+}
+
+// WithInsecureCookies lets pgdesk run over plain HTTP. By default its cookies
+// are Secure, and browsers discard them on any http:// origin but localhost,
+// so every form submission fails CSRF verification. The CSRF cookie also loses
+// its __Host- prefix, so other hosts under the same domain can overwrite it.
+// Use it only on a network you trust, such as a VPN; serving pgdesk over HTTPS
+// is better.
+func WithInsecureCookies() Option {
+	return func(c *config) { c.insecureCookies = true }
 }
 
 // WithLogger sets the logger. By default nothing is logged.

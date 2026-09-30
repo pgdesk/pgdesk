@@ -5,6 +5,11 @@ versions may break the API.
 
 ## Unreleased
 
+- New `WithInsecureCookies` option lets pgdesk run over plain HTTP. Its
+  cookies are `Secure`, so browsers drop them on `http://` origins other than
+  localhost, and every save fails CSRF verification. When the CSRF cookie is
+  missing from a plain HTTP request, the logged error now explains why.
+
 - A failed delete no longer always says "other records depend on it". Only a
   foreign-key violation does; any other failure, such as an audit logger
   error, shows a generic error.

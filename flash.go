@@ -20,15 +20,7 @@ func (a *Admin) setFlash(w http.ResponseWriter, level, message string) {
 	if err != nil {
 		return
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     flashCookieName,
-		Value:    a.signer.Seal(payload),
-		Path:     a.cfg.basePath,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   30,
-	})
+	http.SetCookie(w, a.newCookie(flashCookieName, a.signer.Seal(payload), a.cfg.basePath, 30))
 }
 
 func (a *Admin) takeFlash(w http.ResponseWriter, r *http.Request) []flashMsg {
@@ -40,15 +32,7 @@ func (a *Admin) takeFlash(w http.ResponseWriter, r *http.Request) []flashMsg {
 		return nil
 	}
 
-	http.SetCookie(w, &http.Cookie{
-		Name:     flashCookieName,
-		Value:    "",
-		Path:     a.cfg.basePath,
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-		MaxAge:   -1,
-	})
+	http.SetCookie(w, a.newCookie(flashCookieName, "", a.cfg.basePath, -1))
 
 	payload, err := a.signer.Open(c.Value)
 	if err != nil {

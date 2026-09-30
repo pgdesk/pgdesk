@@ -98,7 +98,7 @@ browser ─▶ your Go server ─▶ your auth middleware ─▶ pgdesk (an http
 
 It also includes bulk actions, an audit log written in the same transaction as each change, protection against lost updates from concurrent edits, CSRF and CSP, dark mode, and keyboard shortcuts.
 
-pgdesk is built for internal tools used by trusted operators. Put it behind your auth and your network, not on the open internet.
+pgdesk is built for internal tools used by trusted operators. Put it behind your auth and your network, not on the open internet, and serve it over HTTPS: its cookies are `Secure`, so over plain `http://` every save fails. On a trusted network without TLS, pass `WithInsecureCookies()`.
 
 ## Requirements
 
