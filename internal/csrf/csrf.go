@@ -13,6 +13,8 @@ import (
 
 const CookieName = "__Host-pgdesk_csrf"
 
+const InsecureCookieName = "pgdesk_csrf"
+
 const FormField = "_pgdesk_csrf"
 
 const (

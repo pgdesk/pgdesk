@@ -102,3 +102,51 @@ func TestIntegrationStateChangingRoutesRequireCSRF(t *testing.T) {
 		})
 	}
 }
+
+// httptest requests carry no TLS state, so these arrive as plain HTTP.
+func TestIntegrationInsecureCookiesAllowPlainHTTPWrites(t *testing.T) {
+	admin, pool := usersAdmin(t, pgdesk.WithInsecureCookies())
+
+	rec := do(admin, httptest.NewRequest("GET", "/admin/it_users/1/edit", nil))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("edit form status = %d\n%s", rec.Code, rec.Body)
+	}
+	token := resultCookie(rec, "pgdesk_csrf")
+	if token == nil {
+		t.Fatalf("no pgdesk_csrf cookie; Set-Cookie = %q", rec.Header().Values("Set-Cookie"))
+	}
+	if token.Secure {
+		t.Errorf("CSRF cookie %q is Secure, so browsers drop it over plain HTTP", token)
+	}
+	vm := reVersion.FindStringSubmatch(rec.Body.String())
+	if vm == nil {
+		t.Fatalf("no version field in form:\n%s", rec.Body)
+	}
+	before := usersSnapshot(t, pool)
+
+	form := url.Values{"_version": {vm[1]}, "email": {"mallory@example.com"}, "status": {"active"}}
+	form.Set("_pgdesk_csrf", token.Value)
+	req := httptest.NewRequest("POST", "/admin/it_users/1/edit", strings.NewReader(form.Encode()))
+	req.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+	req.AddCookie(token)
+	rec = do(admin, req)
+
+	if rec.Code != http.StatusSeeOther {
+		t.Fatalf("status = %d, want 303\n%s", rec.Code, rec.Body)
+	}
+	if usersSnapshot(t, pool) == before {
+		t.Error("a valid request left it_users unchanged")
+	}
+	if flash := resultCookie(rec, "pgdesk_flash"); flash == nil || flash.Secure {
+		t.Errorf("flash cookie = %q, want one without Secure", flash)
+	}
+}
+
+func resultCookie(rec *httptest.ResponseRecorder, name string) *http.Cookie {
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == name {
+			return c
+		}
+	}
+	return nil
+}
