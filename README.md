@@ -54,26 +54,11 @@ The code only names columns. pgdesk works out the rest from the database:
 | `timestamptz` | A date-range filter |
 | A view PostgreSQL can't update | No edit button |
 
-<table>
-  <tr>
-    <td width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/search-dark.png">
-        <img alt="Searching orders for 'ada' returns Ada Lovelace's orders" src=".github/screenshots/search-light.png">
-      </picture>
-    </td>
-    <td width="50%">
-      <picture>
-        <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/edit-dark.png">
-        <img alt="Editing an order: customer picker, status dropdown, read-only id" src=".github/screenshots/edit-light.png">
-      </picture>
-    </td>
-  </tr>
-  <tr>
-    <td align="center">Search follows the foreign key: "ada" finds her orders</td>
-    <td align="center">The form comes from the column types and constraints</td>
-  </tr>
-</table>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/edit-dark.png">
+  <img alt="Editing an order: customer picker, status dropdown, read-only id" src=".github/screenshots/edit-light.png">
+</picture>
+<p align="center">The form comes from the column types and constraints.</p>
 
 ## Try it
 
@@ -96,18 +81,18 @@ browser ─▶ your Go server ─▶ your auth middleware ─▶ pgdesk (an http
 - **Keep your auth.** pgdesk has no login page. Your middleware says *who* the user is ([example](examples/session-auth)). An `Authorizer` decides *what* they may do. An optional `Scoper` decides *which rows* they see, and pgdesk adds that to the SQL `WHERE` ([how scoping is enforced](docs/scoping.md)).
 - **Nothing is exposed until you name it.** It shows only the tables you list, or all of them if you opt into `WithAutoRegister`.
 
-It also includes bulk actions, an audit log written in the same transaction as each change, protection against lost updates from concurrent edits, CSRF and CSP, dark mode, and keyboard shortcuts.
+Concurrent edits can't silently overwrite each other, and with `WithTxAuditLogger` each change and its audit entry commit together or not at all.
 
 pgdesk is built for internal tools used by trusted operators. Put it behind your auth and your network, not on the open internet, and serve it over HTTPS: its cookies are `Secure`, so over plain `http://` every save fails. On a trusted network without TLS, pass `WithInsecureCookies()`.
 
 ## Requirements
 
-Go 1.25+ and PostgreSQL 12+. CI runs the integration tests against PostgreSQL 12, 14, 16 and 18.
+Go 1.25+ and PostgreSQL 12+.
 
 ```sh
 go get github.com/pgdesk/pgdesk@latest
 ```
 
-The API may change before v1. The API reference is on [pkg.go.dev](https://pkg.go.dev/github.com/pgdesk/pgdesk). MIT licensed.
+The API may change before v1. MIT licensed.
 
 Logo based on the Go gopher by Renée French, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/).
