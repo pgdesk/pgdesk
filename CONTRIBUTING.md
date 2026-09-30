@@ -26,6 +26,8 @@ PGDESK_TEST_DSN=postgres://postgres:pgdesk@localhost:5432/postgres?sslmode=disab
     go test -tags=integration -race ./...
 ```
 
+CI runs them against PostgreSQL 12, 14, 16 and 18.
+
 The tests drop and recreate their tables, so use a throwaway database, not
 one you care about. If port 5432 is taken, use `-p 55432:5432` and change the
 port in the DSN.
