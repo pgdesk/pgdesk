@@ -304,7 +304,7 @@ func (a *Admin) ensureCSRFToken(w http.ResponseWriter, r *http.Request) string {
 	if a.signer == nil {
 		return ""
 	}
-	if c, err := r.Cookie(csrf.CookieName); err == nil {
+	if c, err := r.Cookie(a.csrfCookieName()); err == nil {
 		if verr := a.signer.Verify(c.Value); verr == nil {
 			return c.Value
 		}
@@ -314,14 +314,7 @@ func (a *Admin) ensureCSRFToken(w http.ResponseWriter, r *http.Request) string {
 		LoggerFromContext(r.Context()).Error("pgdesk: issuing CSRF token", "error", err)
 		return ""
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:     csrf.CookieName,
-		Value:    token,
-		Path:     "/",
-		Secure:   true,
-		HttpOnly: true,
-		SameSite: http.SameSiteLaxMode,
-	})
+	http.SetCookie(w, a.newCookie(a.csrfCookieName(), token, "/", 0))
 	return token
 }
 
@@ -329,8 +322,11 @@ func (a *Admin) verifyCSRF(r *http.Request) error {
 	if a.signer == nil {
 		return fmt.Errorf("pgdesk: no CSRF signer configured")
 	}
-	c, err := r.Cookie(csrf.CookieName)
+	c, err := r.Cookie(a.csrfCookieName())
 	if err != nil {
+		if !a.cfg.insecureCookies && !isHTTPS(r) {
+			return fmt.Errorf("pgdesk: missing CSRF cookie: %w (%w)", err, errPlainHTTP)
+		}
 		return fmt.Errorf("pgdesk: missing CSRF cookie: %w", err)
 	}
 	form := r.PostFormValue(csrf.FormField)
