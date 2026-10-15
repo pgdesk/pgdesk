@@ -51,17 +51,7 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 	b.WriteString(" FROM ")
 	b.WriteString(QualifyIdent(t.Schema, t.Name))
 
-	conds := make([]string, 0, len(p.Filters)+1)
-	for _, f := range p.Filters {
-		conds = append(conds, emitFilter(args, f))
-	}
-	if p.Search.active() {
-		conds = append(conds, emitSearch(args, p.Search))
-	}
-	if len(conds) > 0 {
-		b.WriteString(" WHERE ")
-		b.WriteString(strings.Join(conds, " AND "))
-	}
+	writeListConditions(&b, args, p)
 
 	order := make([]string, 0, 1+len(t.PrimaryKey))
 	if p.Sort != nil {
@@ -86,6 +76,36 @@ func BuildList(t *introspect.Table, p ListParams) (string, []any, error) {
 	b.WriteString(" OFFSET ")
 	b.WriteString(args.Add(p.Offset))
 	return b.String(), args.Values(), nil
+}
+
+// BuildCount returns the query that counts the rows BuildList pages through,
+// with the same WHERE clause: the same filters and search, in the same order.
+func BuildCount(t *introspect.Table, p ListParams) (string, []any, error) {
+	if t == nil {
+		return "", nil, ErrNoTable
+	}
+	var b strings.Builder
+	args := &Args{}
+	b.WriteString("SELECT count(*) FROM ")
+	b.WriteString(QualifyIdent(t.Schema, t.Name))
+	writeListConditions(&b, args, p)
+	return b.String(), args.Values(), nil
+}
+
+// writeListConditions appends the WHERE clause shared by BuildList and
+// BuildCount, so a row can never pass one query and fail the other.
+func writeListConditions(b *strings.Builder, args *Args, p ListParams) {
+	conds := make([]string, 0, len(p.Filters)+1)
+	for _, f := range p.Filters {
+		conds = append(conds, emitFilter(args, f))
+	}
+	if p.Search.active() {
+		conds = append(conds, emitSearch(args, p.Search))
+	}
+	if len(conds) > 0 {
+		b.WriteString(" WHERE ")
+		b.WriteString(strings.Join(conds, " AND "))
+	}
 }
 
 func emitFilter(args *Args, f Filter) string {

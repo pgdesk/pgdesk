@@ -9,6 +9,8 @@ import (
 
 var ErrNoColumns = errors.New("pgdesk/query: no columns supplied")
 
+var ErrNoTable = errors.New("pgdesk/query: no table supplied")
+
 var ErrColumnValueMismatch = errors.New("pgdesk/query: column/value count mismatch")
 
 type VersionStrategy struct {

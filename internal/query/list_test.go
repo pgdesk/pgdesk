@@ -85,6 +85,76 @@ func TestEmitFilterByOperator(t *testing.T) {
 	}
 }
 
+func TestBuildCountMirrorsListConditions(t *testing.T) {
+	tbl := testTable()
+	p := ListParams{
+		Filters: []Filter{{Col: col(tbl, "status"), Op: OpEq, Values: []any{"active"}}},
+		Search:  &SearchSpec{Cols: []*introspect.Column{col(tbl, "email")}, Term: "%ada%"},
+		Limit:   10,
+		Offset:  100,
+	}
+
+	listSQL, listArgs, err := BuildList(tbl, ListParams{
+		Columns: []*introspect.Column{col(tbl, "id")},
+		Filters: p.Filters,
+		Search:  p.Search,
+		Limit:   p.Limit,
+		Offset:  p.Offset,
+	})
+	if err != nil {
+		t.Fatal(err)
+	}
+	countSQL, countArgs, err := BuildCount(tbl, p)
+	if err != nil {
+		t.Fatal(err)
+	}
+
+	want := `SELECT count(*) FROM "public"."users" WHERE "status" = $1 AND ("email" ILIKE $2)`
+	if countSQL != want {
+		t.Fatalf("count SQL:\n got: %s\nwant: %s", countSQL, want)
+	}
+	if len(countArgs) != 2 || countArgs[0] != "active" || countArgs[1] != "%ada%" {
+		t.Fatalf("count args = %v, want the list's filter and search values", countArgs)
+	}
+	if strings.Contains(countSQL, "ORDER BY") || strings.Contains(countSQL, "LIMIT") || strings.Contains(countSQL, "OFFSET") {
+		t.Fatalf("count must not order or page: %s", countSQL)
+	}
+
+	wantWhere := listSQL[strings.Index(listSQL, "WHERE"):]
+	if !strings.HasPrefix(wantWhere, countSQL[strings.Index(countSQL, "WHERE"):]) {
+		t.Fatalf("count WHERE must match list WHERE:\n list: %s\ncount: %s", listSQL, countSQL)
+	}
+	// The count binds only the WHERE values; the list appends LIMIT and OFFSET.
+	if len(countArgs) > len(listArgs) {
+		t.Fatalf("count args %v should be a prefix of list args %v", countArgs, listArgs)
+	}
+	for i, v := range countArgs {
+		if listArgs[i] != v {
+			t.Fatalf("count arg %d = %v, want the list's %v (args %v vs %v)", i, v, listArgs[i], countArgs, listArgs)
+		}
+	}
+}
+
+func TestBuildCountWithoutConditions(t *testing.T) {
+	tbl := testTable()
+	sql, args, err := BuildCount(tbl, ListParams{})
+	if err != nil {
+		t.Fatal(err)
+	}
+	if sql != `SELECT count(*) FROM "public"."users"` {
+		t.Fatalf("unexpected count SQL: %s", sql)
+	}
+	if len(args) != 0 {
+		t.Fatalf("unexpected args: %v", args)
+	}
+}
+
+func TestBuildCountWithoutTable(t *testing.T) {
+	if _, _, err := BuildCount(nil, ListParams{}); err != ErrNoTable {
+		t.Fatalf("want ErrNoTable, got %v", err)
+	}
+}
+
 func TestBuildListWithFiltersAndSearch(t *testing.T) {
 	tbl := testTable()
 	sql, args, err := BuildList(tbl, ListParams{
