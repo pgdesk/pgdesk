@@ -5,6 +5,12 @@ versions may break the API.
 
 ## Unreleased
 
+- Lists can show numbered page links (first/last pages, ellipses, and a
+  "Page X of N" label) with `WithNumberedPagination`. It is off by default
+  because it adds one `COUNT` query per list request; tune the window with
+  `WithPaginationWindow` and override per resource with
+  `Resource.NumberedPagination`. A `Metrics` implementation that switches on
+  the operation now also sees `count`, alongside `list`, `detail` and the rest.
 - A failed delete no longer always says "other records depend on it". Only a
   foreign-key violation does; any other failure, such as an audit logger
   error, shows a generic error.

@@ -111,9 +111,16 @@
 </table>
 </div>
 <nav class="pg-pager" aria-label="Pagination">
-  <span class="pg-page-info">Page {{ .Page }}</span>
+  <span class="pg-page-info">{{ if .NumberedPager }}Page {{ .Page }} of {{ .TotalPages }}{{ if gt .TotalRows 0 }}<span class="pg-page-total"> &middot; {{ .TotalRows }} rows</span>{{ end }}{{ else }}Page {{ .Page }}{{ end }}</span>
   <div class="pg-pager-links">
     {{- if .HasPrev }}<a class="pg-btn" href="{{ .PrevURL }}"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Previous</span></a>{{ else }}<span class="pg-btn" aria-disabled="true"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m15 6-6 6 6 6"/></svg><span>Previous</span></span>{{ end }}
+    {{- if .NumberedPager }}
+    {{- range .PageLinks }}
+      {{- if .Ellipsis }}<span class="pg-page-gap" aria-hidden="true">&hellip;</span>
+      {{- else if .Current }}<span class="pg-page-num pg-page-num-current" aria-current="page">{{ .Page }}</span>
+      {{- else }}<a class="pg-page-num" href="{{ .URL }}">{{ .Page }}</a>{{ end }}
+    {{- end }}
+    {{- end }}
     {{- if .HasNext }}<a class="pg-btn" href="{{ .NextURL }}"><span>Next</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a>{{ else }}<span class="pg-btn" aria-disabled="true"><span>Next</span><svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></span>{{ end }}
   </div>
 </nav>

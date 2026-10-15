@@ -113,6 +113,10 @@ type listView struct {
 	HasNext         bool
 	PrevURL         string
 	NextURL         string
+	NumberedPager   bool
+	TotalPages      int
+	TotalRows       int64
+	PageLinks       []pageLink
 }
 
 type detailField struct {

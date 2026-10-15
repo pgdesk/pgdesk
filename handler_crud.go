@@ -168,6 +168,21 @@ func (a *Admin) handleList(w http.ResponseWriter, r *http.Request) {
 		PrevURL:         a.pageURL(r, res, lr.page-1),
 		NextURL:         a.pageURL(r, res, lr.page+1),
 	}
+
+	if a.numberedPagerFor(res) {
+		cctx, ccancel := a.queryContext(r)
+		defer ccancel()
+		total, cerr := a.countListRows(cctx, res, withScope(lr.filters, scope), search)
+		if cerr != nil {
+			LoggerFromContext(r.Context()).Warn("pgdesk: count query failed, numbered pagination disabled for this request",
+				"resource", res.name, "error", cerr)
+		} else {
+			data.NumberedPager = true
+			data.TotalRows = total
+			data.TotalPages = totalPagesFor(total, lr.pageSize)
+			data.PageLinks = a.pageLinks(r, res, lr.page, data.TotalPages, a.cfg.paginationWindow)
+		}
+	}
 	a.renderPage(w, r, http.StatusOK, "list", data)
 }
 

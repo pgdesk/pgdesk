@@ -239,6 +239,29 @@ func TestWithMaxExportRowsIgnoresNonPositive(t *testing.T) {
 	}
 }
 
+func TestWithPaginationWindowAcceptsPositive(t *testing.T) {
+	c := defaultConfig()
+	WithPaginationWindow(9)(c)
+	if c.paginationWindow != 9 {
+		t.Errorf("paginationWindow = %d, want 9", c.paginationWindow)
+	}
+	if len(c.optionWarnings) != 0 {
+		t.Errorf("expected no ignored-option notes, got %v", c.optionWarnings)
+	}
+}
+
+func TestWithPaginationWindowIgnoresNonPositive(t *testing.T) {
+	c := defaultConfig()
+	want := c.paginationWindow
+	WithPaginationWindow(0)(c)
+	if c.paginationWindow != want {
+		t.Errorf("paginationWindow changed on ignored value")
+	}
+	if len(c.optionWarnings) != 1 || !strings.Contains(c.optionWarnings[0], "WithPaginationWindow") {
+		t.Errorf("expected a WithPaginationWindow note, got %v", c.optionWarnings)
+	}
+}
+
 func TestWithSchemasIgnoresEmptyCall(t *testing.T) {
 	c := defaultConfig()
 	want := append([]string(nil), c.schemas...)

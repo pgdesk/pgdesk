@@ -20,12 +20,13 @@ type Resource struct {
 	name  string
 	table *introspect.Table
 
-	listDisplay  []*introspect.Column
-	searchFields []*introspect.Column
-	filters      []*introspect.Column
-	sortCol      *introspect.Column
-	sortDesc     bool
-	pageSize     int
+	listDisplay   []*introspect.Column
+	searchFields  []*introspect.Column
+	filters       []*introspect.Column
+	sortCol       *introspect.Column
+	sortDesc      bool
+	pageSize      int
+	numberedPager *bool
 
 	keyCols    []*introspect.Column
 	versionCol *introspect.Column
@@ -183,6 +184,13 @@ func (r *Resource) PageSize(n int) {
 	if n > 0 {
 		r.pageSize = n
 	}
+}
+
+// NumberedPagination turns numbered page links on or off for this resource,
+// overriding the WithNumberedPagination default. Numbering needs an extra COUNT
+// query per list request, so turn it off for resources whose count is costly.
+func (r *Resource) NumberedPagination(on bool) {
+	r.numberedPager = &on
 }
 
 // Key sets the columns that identify a row. Default: the primary key.

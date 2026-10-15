@@ -32,12 +32,14 @@ type config struct {
 	txAudit    TxAuditLogger
 	middleware []Middleware
 
-	defaultPageSize int
-	maxPageSize     int
-	maxBodyBytes    int64
-	maxBulk         int
-	maxExportRows   int
-	maxOptions      int
+	defaultPageSize    int
+	maxPageSize        int
+	numberedPagination bool
+	paginationWindow   int
+	maxBodyBytes       int64
+	maxBulk            int
+	maxExportRows      int
+	maxOptions         int
 
 	templateFS fs.FS
 
@@ -52,21 +54,22 @@ func (c *config) noteIgnoredOption(note string) {
 
 func defaultConfig() *config {
 	return &config{
-		title:           "pgdesk",
-		basePath:        "/admin",
-		schemas:         []string{"public"},
-		loginURL:        "",
-		queryTimeout:    15 * time.Second,
-		exportTimeout:   5 * time.Minute,
-		logger:          slog.New(discardHandler{}),
-		metrics:         nopMetrics{},
-		authorizer:      nil,
-		defaultPageSize: 50,
-		maxPageSize:     200,
-		maxBodyBytes:    1 << 20,
-		maxBulk:         500,
-		maxExportRows:   50000,
-		maxOptions:      20,
+		title:            "pgdesk",
+		basePath:         "/admin",
+		schemas:          []string{"public"},
+		loginURL:         "",
+		queryTimeout:     15 * time.Second,
+		exportTimeout:    5 * time.Minute,
+		logger:           slog.New(discardHandler{}),
+		metrics:          nopMetrics{},
+		authorizer:       nil,
+		defaultPageSize:  50,
+		maxPageSize:      200,
+		paginationWindow: defaultPaginationWindow,
+		maxBodyBytes:     1 << 20,
+		maxBulk:          500,
+		maxExportRows:    50000,
+		maxOptions:       20,
 	}
 }
 
@@ -230,6 +233,28 @@ func WithMaxPageSize(n int) Option {
 			return
 		}
 		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithMaxPageSize(%d) ignored: value must be > 0, keeping %d", n, c.maxPageSize))
+	}
+}
+
+// WithNumberedPagination shows numbered page links (with the first and last
+// pages and ellipses for the gaps) in list pagers instead of only
+// Previous/Next. It costs one extra COUNT query per list request, so it is off
+// by default; turn it off for a single resource with
+// Resource.NumberedPagination(false).
+func WithNumberedPagination() Option {
+	return func(c *config) { c.numberedPagination = true }
+}
+
+// WithPaginationWindow sets how many numbered page links the pager shows around
+// the current page before collapsing to first/last and ellipses. Default 5.
+// It has no effect unless numbered pagination is enabled.
+func WithPaginationWindow(n int) Option {
+	return func(c *config) {
+		if n > 0 {
+			c.paginationWindow = n
+			return
+		}
+		c.noteIgnoredOption(fmt.Sprintf("pgdesk: WithPaginationWindow(%d) ignored: value must be > 0, keeping %d", n, c.paginationWindow))
 	}
 }
 

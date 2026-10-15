@@ -321,8 +321,13 @@ input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--pg-accent)
 .pg-table tbody tr:hover td.pg-empty { background: transparent; }
 .pg-pager { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 10px 12px; border-top: 1px solid var(--pg-border); background: var(--pg-surface-2); }
 .pg-page-info { font-size: 12.5px; color: var(--pg-muted); }
-.pg-pager-links { display: flex; gap: 6px; }
+.pg-pager-links { display: flex; align-items: center; gap: 6px; }
 .pg-pager .pg-btn { height: 32px; padding: 0 10px; }
+.pg-page-total { color: var(--pg-muted); }
+.pg-page-num { display: inline-flex; align-items: center; justify-content: center; min-width: 32px; height: 32px; padding: 0 8px; font-size: 12.5px; font-weight: 550; color: var(--pg-text-2); background: var(--pg-surface); border: 1px solid var(--pg-border); border-radius: var(--pg-radius-sm); }
+.pg-page-num:hover { color: var(--pg-text); background: var(--pg-hover); }
+.pg-page-num-current, .pg-page-num-current:hover { color: var(--pg-accent-text); background: var(--pg-accent); border-color: var(--pg-accent); }
+.pg-page-gap { min-width: 20px; text-align: center; color: var(--pg-muted); }
 
 /* ── Detail ──────────────────────────────────────────────── */
 .pg-detail { margin: 0; display: grid; grid-template-columns: repeat(auto-fill, minmax(min(100%, 420px), 1fr)); }

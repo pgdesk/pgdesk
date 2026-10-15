@@ -518,6 +518,68 @@ func TestIntegrationPageSizeClampedAndPaged(t *testing.T) {
 	}
 }
 
+func TestIntegrationNumberedPaginationOffByDefault(t *testing.T) {
+	admin, _ := setup(t)
+	body := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1", nil)).Body.String()
+
+	if strings.Contains(body, "pg-page-num") {
+		t.Fatalf("numbered page links must be opt-in:\n%s", body)
+	}
+	if strings.Contains(body, "Page 1 of") {
+		t.Fatalf("the page count must not appear without the option:\n%s", body)
+	}
+}
+
+func TestIntegrationNumberedPagination(t *testing.T) {
+	// leavingDDL adds a third, pending user, so a count that ignored the
+	// filter would not land on the same number as a filtered one.
+	users := pgdesk.WithResource("it_users", func(r *pgdesk.Resource) { r.Filters("status") })
+	admin, _ := setupSchema(t, leavingDDL, pgdesk.WithNumberedPagination(), users)
+
+	// page_size=1, so there is a page per row and three numbered pages.
+	body := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1", nil)).Body.String()
+	if !strings.Contains(body, "Page 1 of 3") {
+		t.Fatalf("expected a page count with numbered pagination:\n%s", body)
+	}
+	// Assert on the link markup, not bare digits: a row's id cell would
+	// otherwise satisfy ">1<" on its own.
+	for _, want := range []string{
+		`class="pg-page-num pg-page-num-current" aria-current="page">1</span>`,
+		`class="pg-page-num" href="/admin/it_users?page=2&amp;page_size=1">2</a>`,
+		`class="pg-page-num" href="/admin/it_users?page=3&amp;page_size=1">3</a>`,
+	} {
+		if !strings.Contains(body, want) {
+			t.Fatalf("missing %s:\n%s", want, body)
+		}
+	}
+
+	// The count must use the page query's filters: one row is active.
+	filtered := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1&f_status=active", nil)).Body.String()
+	if !strings.Contains(filtered, "Page 1 of 1") {
+		t.Fatalf("the count ignored the active filter:\n%s", filtered)
+	}
+
+	// Numbered links must carry the filter through to the next page.
+	paged := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1&f_status__ne=active", nil)).Body.String()
+	if !strings.Contains(paged, `href="/admin/it_users?f_status__ne=active&amp;page=2&amp;page_size=1">2</a>`) {
+		t.Fatalf("numbered links dropped the filter:\n%s", paged)
+	}
+}
+
+func TestIntegrationNumberedPaginationResourceOverride(t *testing.T) {
+	users := pgdesk.WithResource("it_users", func(r *pgdesk.Resource) { r.NumberedPagination(false) })
+	admin, _ := setupSchema(t, "", pgdesk.WithNumberedPagination(), users)
+
+	body := do(admin, httptest.NewRequest("GET", "/admin/it_users?page_size=1", nil)).Body.String()
+	if strings.Contains(body, "pg-page-num") {
+		t.Fatalf("the per-resource override should disable numbering:\n%s", body)
+	}
+	// The plain pager is still there, so the page did render.
+	if !strings.Contains(body, ">Page 1</span>") {
+		t.Fatalf("expected the plain pager to render:\n%s", body)
+	}
+}
+
 func TestIntegrationFKLabels(t *testing.T) {
 	admin, _ := setupWith(t, pgdesk.WithAutoRegister(pgdesk.ExcludeTables("it_audit")))
 	mux := http.NewServeMux()
