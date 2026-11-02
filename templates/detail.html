@@ -36,5 +36,40 @@
     {{- end }}
   </dl>
 </section>
+{{- range $i, $s := .Related }}
+<section class="pg-card pg-related" aria-labelledby="pg-related-{{ $i }}">
+  <h2 class="pg-related-title" id="pg-related-{{ $i }}">{{ $s.Title }} <span class="pg-related-count">{{ len $s.Rows }}{{ if $s.More }}+{{ end }}</span></h2>
+  <div class="pg-table-scroll">
+  <table class="pg-table pg-table-related">
+    <caption class="pg-sr-only">{{ $s.Title }}</caption>
+    <thead>
+      <tr>
+        {{- range $s.Headers }}<th scope="col">{{ . }}</th>{{ end }}
+        {{- if $s.HasDetail }}<th class="pg-actions-col" scope="col"><span class="pg-sr-only">Open</span></th>{{ end }}
+      </tr>
+    </thead>
+    <tbody>
+      {{- range $s.Rows }}
+      <tr>
+        {{- range .Cells }}
+        <td class="{{ if not (or .Link .Label) }}{{ cellClass .Value }}{{ end }}">
+          {{- if .Link }}<a class="pg-fk-link" href="{{ .Link }}">{{ .Label }}</a>
+          {{- else if .Label }}{{ .Label }}
+          {{- else }}<span class="pg-cell">{{ cellValue .Value }}</span>{{ end }}
+        </td>
+        {{- end }}
+        {{- if $s.HasDetail }}<td class="pg-actions-col"><a class="pg-row-open" href="{{ $.Base.BasePath }}/{{ $s.Resource }}/{{ .Key }}">Open<svg viewBox="0 0 24 24" aria-hidden="true"><path d="m9 6 6 6-6 6"/></svg></a></td>{{ end }}
+      </tr>
+      {{- else }}
+      <tr><td class="pg-empty" colspan="99"><div class="pg-empty-state"><p>None.</p></div></td></tr>
+      {{- end }}
+    </tbody>
+  </table>
+  </div>
+  {{- if $s.More }}
+  <p class="pg-related-more">Showing the first {{ $s.Limit }}.{{ if $s.AllURL }} <a href="{{ $s.AllURL }}">Show all</a>{{ end }}</p>
+  {{- end }}
+</section>
+{{- end }}
 {{ template "foot" .Base }}
 {{- end -}}

@@ -309,6 +309,11 @@ input[type=checkbox] { width: 16px; height: 16px; accent-color: var(--pg-accent)
 .pg-actions-col { width: 1%; text-align: right; }
 .pg-row-open { display: inline-flex; align-items: center; gap: 2px; font-size: 12.5px; font-weight: 500; opacity: 0; transition: opacity var(--pg-dur) ease; }
 .pg-table tr:hover .pg-row-open, .pg-row-open:focus-visible { opacity: 1; }
+.pg-related { margin-top: 16px; padding: 0; }
+.pg-related-title { margin: 0; padding: 14px 16px; font-size: 14px; font-weight: 600; color: var(--pg-text); }
+.pg-related-count { margin-left: 6px; font-weight: 500; color: var(--pg-muted); font-variant-numeric: tabular-nums; }
+.pg-related-more { margin: 0; padding: 10px 16px; font-size: 13px; color: var(--pg-muted); border-top: 1px solid var(--pg-border); }
+.pg-table-related td { max-width: none; white-space: normal; overflow-wrap: anywhere; }
 .pg-cell-mono { font-family: var(--pg-mono); font-size: 12px; font-variant-numeric: tabular-nums; }
 .pg-cell-num { text-align: right; font-variant-numeric: tabular-nums; }
 .pg-cell-json { font-family: var(--pg-mono); font-size: 12px; color: var(--pg-muted); }

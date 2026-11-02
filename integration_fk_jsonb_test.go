@@ -12,8 +12,7 @@ import (
 	"github.com/pgdesk/pgdesk"
 )
 
-// A detail page for a row that has a foreign key and a jsonb column. The jsonb value is a Go map, which cannot be a map
-// key, and the page used to panic when it looked every column up for a label.
+// jsonb cells are maps; using one as a map key used to panic.
 func TestDetailOfARowWithAForeignKeyAndAJSONColumnRenders(t *testing.T) {
 	pool := capPool(t)
 	if _, err := pool.Exec(context.Background(), `

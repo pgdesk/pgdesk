@@ -5,6 +5,15 @@ versions may break the API.
 
 ## Unreleased
 
+- `Resource.Related(child, ...)` lists the rows that reference the record on its
+  detail page. Read-only, at most 50 rows by default (`RelatedLimit`, max 500),
+  with a link to the child's filtered list when it has an exact filter on the
+  referencing column. The foreign key is inferred; pass `RelatedVia` if there
+  are several. The child's hidden columns, list permission and Scoper apply.
+  `New` fails on a bad config and warns when the referencing column has no
+  index to lead with.
+- Fix a panic on the detail page of a row with both a foreign key and a `jsonb`
+  column.
 - Lists can show numbered page links (first/last pages, ellipses, and a
   "Page X of N" label) with `WithNumberedPagination`. It is off by default
   because it adds one `COUNT` query per list request; tune the window with

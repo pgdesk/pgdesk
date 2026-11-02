@@ -233,6 +233,7 @@ func (a *Admin) handleDetail(w http.ResponseWriter, r *http.Request) {
 		CanEdit:   res.canUpdate() && a.can(r, CapUpdate, res.name, ""),
 		CanDelete: res.canDelete() && a.can(r, CapDelete, res.name, ""),
 		Fields:    fields,
+		Related:   a.relatedViews(r, res, keyVals[0]),
 	}
 	a.renderPage(w, r, http.StatusOK, "detail", data)
 }

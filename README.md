@@ -54,6 +54,10 @@ The code only names columns. pgdesk works out the rest from the database:
 | `timestamptz` | A date-range filter |
 | A view PostgreSQL can't update | No edit button |
 
+To show an order's line items on its page, add `r.Related("order_items", pgdesk.RelatedSort("position"))`. The
+foreign key comes from the schema, the section is read-only, and it reads at most 50 rows. Index the referencing column,
+because Postgres does not do it for you; pgdesk warns at startup if you did not.
+
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset=".github/screenshots/edit-dark.png">
   <img alt="Editing an order: customer picker, status dropdown, read-only id" src=".github/screenshots/edit-light.png">
