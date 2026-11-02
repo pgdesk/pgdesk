@@ -291,3 +291,32 @@ func TestOneSectionThatFailsDoesNotTakeThePageDown(t *testing.T) {
 		t.Fatalf("%d: the page failed with its section", rec.Code)
 	}
 }
+
+func TestStartupWarnsWhenTheFullListCannotBeLinked(t *testing.T) {
+	var logs bytes.Buffer
+	pool := capPool(t)
+	if _, err := pool.Exec(context.Background(), relatedSchema); err != nil {
+		t.Fatal(err)
+	}
+	build := func(filter string) string {
+		logs.Reset()
+		admin, err := pgdesk.New(pool,
+			pgdesk.WithLogger(slog.New(slog.NewTextHandler(&logs, nil))),
+			pgdesk.WithSecretKey([]byte("integration-test-secret-key-000000")),
+			pgdesk.WithAuthorizer(pgdesk.AllowAll),
+			pgdesk.WithResource("rel_sessions", func(r *pgdesk.Resource) { r.Related("rel_turns") }),
+			pgdesk.WithResource("rel_turns", func(r *pgdesk.Resource) { r.Filters(filter) }),
+		)
+		if err != nil {
+			t.Fatal(err)
+		}
+		_ = admin.Close()
+		return logs.String()
+	}
+	if out := build("tenant"); !strings.Contains(out, "no full-list link") {
+		t.Errorf("no warning without a filter on the reference: %s", out)
+	}
+	if out := build("session_id"); strings.Contains(out, "no full-list link") {
+		t.Errorf("warned although the filter exists: %s", out)
+	}
+}

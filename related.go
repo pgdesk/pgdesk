@@ -125,6 +125,10 @@ func (a *Admin) resolveOneRelated(parent *Resource, spec *relatedSpec, resources
 		a.cfg.logger.Warn("pgdesk: related rows will scan the table: no index begins with the referencing column",
 			"resource", parent.name, "related", child.name, "column", fkCol.Name)
 	}
+	if !filtersExactly(child, fkCol) {
+		a.cfg.logger.Warn("pgdesk: related rows past the limit have no full-list link; add Filters on the referencing column or raise RelatedLimit",
+			"resource", parent.name, "related", child.name, "column", fkCol.Name)
+	}
 	return sec, nil
 }
 
@@ -283,14 +287,18 @@ func (a *Admin) relatedView(r *http.Request, sec *relatedSection, key any) (rela
 
 // relatedAllURL is empty unless the child filters this column by exact match (text filters are substring).
 func (a *Admin) relatedAllURL(child *Resource, fk *introspect.Column, key any) string {
-	if !containsColumn(child.filters, fk) {
-		return ""
-	}
-	switch fk.Category {
-	case introspect.CatText, introspect.CatEnum, introspect.CatBool, introspect.CatTimestamp:
+	if !filtersExactly(child, fk) {
 		return ""
 	}
 	return a.listBase(child) + "?" + url.Values{"f_" + fk.Name: {fmt.Sprint(key)}}.Encode()
+}
+
+func filtersExactly(child *Resource, fk *introspect.Column) bool {
+	switch fk.Category {
+	case introspect.CatText, introspect.CatEnum, introspect.CatBool, introspect.CatTimestamp:
+		return false
+	}
+	return containsColumn(child.filters, fk)
 }
 
 func containsColumn(cols []*introspect.Column, c *introspect.Column) bool {
