@@ -33,6 +33,7 @@ what is happening:
 | Create | `CapCreate` |
 | Delete | `CapDelete` |
 | Bulk action | `CapRunAction`, with `attrs.Action` set |
+| Related rows on a detail page | `CapList` on the *child* resource (a section the viewer cannot list is left out) |
 | Foreign-key labels, search and pickers | `CapView` on the *referenced* resource |
 
 Export is deliberately scoped as `CapList`, not `CapExport`. A Scoper written

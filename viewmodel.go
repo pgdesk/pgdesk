@@ -133,6 +133,7 @@ type detailView struct {
 	CanEdit   bool
 	CanDelete bool
 	Fields    []detailField
+	Related   []relatedView
 }
 
 type formField struct {

@@ -48,6 +48,9 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 	if err := loadUniqueConstraints(ctx, tx, schemas, rels); err != nil {
 		return nil, err
 	}
+	if err := loadIndexLeads(ctx, tx, schemas, rels); err != nil {
+		return nil, err
+	}
 
 	tables := make([]*Table, 0, len(relOrder))
 	for _, key := range relOrder {
@@ -55,6 +58,7 @@ func Load(ctx context.Context, db TxBeginner, schemas []string) (*Catalog, error
 		t := NewTable(r.schema, r.name, r.isView, r.updatable, r.comment, r.cols, r.pk, r.fks)
 		t.setCaps(r.insertable, r.updatable, r.deletable, r.hasXmin)
 		t.setUniques(r.uniques)
+		t.indexLeads = r.leads
 		tables = append(tables, t)
 	}
 	if err := tx.Commit(ctx); err != nil {
@@ -78,6 +82,7 @@ type relBuild struct {
 	pk         []*Column
 	fks        []*ForeignKey
 	uniques    []*UniqueConstraint
+	leads      map[string]bool
 }
 
 func relKey(schema, name string) string { return schema + "." + name }
@@ -362,6 +367,39 @@ func loadUniqueConstraints(ctx context.Context, tx pgx.Tx, schemas []string, rel
 		}
 		if len(uc.Columns) > 0 {
 			r.uniques = append(r.uniques, uc)
+		}
+	}
+	return rows.Err()
+}
+
+// loadIndexLeads records the columns that start a valid, non-partial index.
+func loadIndexLeads(ctx context.Context, tx pgx.Tx, schemas []string, rels map[string]*relBuild) error {
+	const q = `
+		SELECT n.nspname, c.relname, i.indkey[0]::int2
+		FROM pg_index i
+		JOIN pg_class c ON c.oid = i.indrelid
+		JOIN pg_namespace n ON n.oid = c.relnamespace
+		WHERE i.indisvalid AND i.indpred IS NULL AND n.nspname = ANY($1)`
+	rows, err := tx.Query(ctx, q, schemas)
+	if err != nil {
+		return fmt.Errorf("pgdesk/introspect: query indexes: %w", err)
+	}
+	defer rows.Close()
+	for rows.Next() {
+		var schema, relname string
+		var attnum int16
+		if err := rows.Scan(&schema, &relname, &attnum); err != nil {
+			return fmt.Errorf("pgdesk/introspect: scan index: %w", err)
+		}
+		r, ok := rels[relKey(schema, relname)]
+		if !ok {
+			continue
+		}
+		if col := r.byAttnum[attnum]; col != nil {
+			if r.leads == nil {
+				r.leads = map[string]bool{}
+			}
+			r.leads[col.Name] = true
 		}
 	}
 	return rows.Err()

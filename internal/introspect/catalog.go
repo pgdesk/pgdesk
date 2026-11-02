@@ -88,6 +88,7 @@ type Table struct {
 
 	UniqueConstraints []*UniqueConstraint
 	uniqueByName      map[string][]string
+	indexLeads        map[string]bool
 }
 
 func (t *Table) setUniques(u []*UniqueConstraint) {
@@ -102,6 +103,9 @@ func (t *Table) UniqueColumns(constraintName string) ([]string, bool) {
 	cols, ok := t.uniqueByName[constraintName]
 	return cols, ok
 }
+
+// HasIndexOn reports whether the column starts a usable index.
+func (t *Table) HasIndexOn(column string) bool { return t.indexLeads[column] }
 
 func (t *Table) QualifiedName() string { return t.Schema + "." + t.Name }
 

@@ -39,6 +39,9 @@ type Resource struct {
 	actions     map[string]*action
 	actionOrder []string
 
+	relateds []*relatedSpec    // as asked for with Related
+	sections []*relatedSection // the same, checked against the schema
+
 	err error
 }
 

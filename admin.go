@@ -150,6 +150,9 @@ func (a *Admin) buildState(cat *introspect.Catalog) (*adminState, error) {
 		}
 	}
 
+	if err := a.resolveRelated(resources, order); err != nil {
+		return nil, err
+	}
 	return &adminState{catalog: cat, resources: resources, order: order}, nil
 }
 
