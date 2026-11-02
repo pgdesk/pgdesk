@@ -10,8 +10,8 @@ versions may break the API.
   with a link to the child's filtered list when it has an exact filter on the
   referencing column. The foreign key is inferred; pass `RelatedVia` if there
   are several. The child's hidden columns, list permission and Scoper apply.
-  `New` fails on a bad config and warns when the referencing column has no
-  index to lead with.
+  `New` fails on a bad config, and warns when the referencing column has no
+  index to lead with or the child has no filter on it for the full-list link.
 - Fix a panic on the detail page of a row with both a foreign key and a `jsonb`
   column.
 - Lists can show numbered page links (first/last pages, ellipses, and a
