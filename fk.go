@@ -60,7 +60,12 @@ func (a *Admin) resolveRowFKLabels(r *http.Request, res *Resource, cols []*intro
 	}
 	out := make(map[string]fkLabel, len(byColumn))
 	for i, c := range cols {
-		if fl, ok := byColumn[c.Name][cells[i]]; ok {
+		// Only foreign-key columns have labels. Looking up any other cell would panic on a jsonb value, which is a map.
+		labels, ok := byColumn[c.Name]
+		if !ok {
+			continue
+		}
+		if fl, ok := labels[cells[i]]; ok {
 			out[c.Name] = fl
 		}
 	}
