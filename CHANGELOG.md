@@ -3,7 +3,7 @@
 pgdesk follows [semantic versioning](https://semver.org). Until v1, minor
 versions may break the API.
 
-## Unreleased
+## 0.3.0 - 2026-11-02
 
 - `Resource.Related(child, ...)` lists the rows that reference the record on its
   detail page. Read-only, at most 50 rows by default (`RelatedLimit`, max 500),
